@@ -258,9 +258,9 @@ def parse (
                 #
                 converters = {}
                 converter_dict = {
-                    'int': lambda x: int(x) if x else None,
-                    'float': lambda x: int(x) if x else None,
-                    'str': str,
+                    'int':   lambda x: int(re.sub(r'[^0-9.]', '', x)) if x else None,
+                    'float': lambda x: float(re.sub(r'[^0-9.]', '', x)) if x else None,
+                    'str':   str,
                 }
                 for t in types:
                     col, col_type = t.split("=")

@@ -75,6 +75,14 @@ or alls like this:
 $ csv2sql.py parse my_file.csv -a
 ```
 
+# Rename Columns
+
+If you want to just rename some columns, but output all columns, you can do it like this:
+
+```bash
+$ csv2sql.py parse -n "Tenant Product Type"=tpt -n "Solution Area"=solution_area
+```
+
 
 # Show, Rename, and Rearrange a Subset of Columns
 
@@ -84,6 +92,9 @@ the columns, you can do it like this:
 ```bash
 $ csv2sql.py parse -c "Tenant Product Type"=tpt -c "Solution Area"=solution_area
 ```
+
+Note that if you did use the -n option, you can also use the -c option to
+then further rearrange the columns.
 
 
 # Apply Regular Expressions to a Subset of Columns
