@@ -189,7 +189,7 @@ def table (
     head:       int  = typer.Option(0,      "--head",      "-h",            help="The number of header lines to skip"),
     compressed: bool = typer.Option(False,  "--compressed", "-c",           help="Whether to use ROW_FORMAT=COMPRESSED or not"),
     idx:        Optional[List[str]] = typer.Option(None, "--index", "-i",   help="The index to use for the table"),
-    files:      Optional[List[str]] = typer.Argument(None,                  help="The files to process"),
+    files:      Optional[List[str]] = typer.Argument(None,                  help="The files to process; optionally use = to specify the table name"),
 ) -> None:
     """
     Parse CSV files to generate MySQL tables
@@ -218,7 +218,7 @@ def parse (
     replace:    List[str] = typer.Option(None, "--replace",   "-r",          help="The regular expressions to apply to the specified columns"),
     types:      List[str] = typer.Option(None, "--types",     "-t",          help="The types to use for the specified columns"),
     ascsv:      bool = typer.Option(False,     "--csv",                      help="Whether to output in CSV format or not"),
-    files:      Optional[List[str]] = typer.Argument(None,                   help="The files to process; optionally use = to specify the table name"),
+    files:      Optional[List[str]] = typer.Argument(None,                   help="The files to process"),
 ) -> None:
     """
     Parse CSV files to generate MySQL tables
