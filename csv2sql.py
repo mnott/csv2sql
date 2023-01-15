@@ -396,46 +396,6 @@ def file_len(file_path):
             pass
     return i + 1
 
-#
-# Command: Doc
-#
-@app.command()
-def doc (
-    ctx:        typer.Context,
-    title:      str  = typer.Option(None,   help="The title of the document"),
-    toc:        bool = typer.Option(False,  help="Whether to create a table of contents"),
-) -> None:
-    print("doc")
-    """
-    Re-create the documentation and write it to the output file.
-    """
-    import importlib
-    import importlib.util
-    import sys
-    import os
-    import doc2md
-
-    def import_path(path):
-        module_name = os.path.basename(path).replace("-", "_")
-        spec = importlib.util.spec_from_loader(
-            module_name,
-            importlib.machinery.SourceFileLoader(module_name, path),
-        )
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        sys.modules[module_name] = module
-        return module
-
-    mod_name = os.path.basename(__file__)
-    if mod_name.endswith(".py"):
-        mod_name = mod_name.rsplit(".py", 1)[0]
-    atitle = title or mod_name.replace("_", "-")
-    module = import_path(__file__)
-    docstr = module.__doc__
-    result = doc2md.doc2md(docstr, atitle, toc=toc, min_level=0)
-    print(result)
-
-
 
 #
 # Process a file
