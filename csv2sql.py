@@ -60,6 +60,12 @@ or alls like this:
 
 $ csv2sql.py parse my_file.csv -a
 
+# Rename Columns
+
+If you want to just rename some columns, but output all columns, you can do it like this:
+
+$ csv2sql.py parse -n "Tenant Product Type"=tpt -n "Solution Area"=solution_area 
+
 
 # Show, Rename, and Rearrange a Subset of Columns
 
@@ -67,6 +73,9 @@ If you want to rearrange, and rename columns, and also only show a subset of
 the columns, you can do it like this:
 
 $ csv2sql.py parse -c "Tenant Product Type"=tpt -c "Solution Area"=solution_area 
+
+Note that if you did use the -n option, you can also use the -c option to
+then further rearrange the columns.
 
 
 # Apply Regular Expressions to a Subset of Columns
@@ -197,6 +206,7 @@ def parse (
     head:       int  = typer.Option(10,        "--head",      "-h",          help="The number of rows to show. -1 for all rows"),
     all:        bool = typer.Option(False,     "--all",       "-a",          help="Whether to show all rows or not"),
     columns:    List[str] = typer.Option(None, "--columns",   "-c",          help="The columns to show and their alternate names"),
+    names:      List[str] = typer.Option(None, "--names",     "-n",          help="If you just want to rename columns, but not select them"),
     replace:    List[str] = typer.Option(None, "--replace",   "-r",          help="The regular expressions to apply to the specified columns"),
     types:      List[str] = typer.Option(None, "--types",     "-t",          help="The types to use for the specified columns"),
     ascsv:      bool = typer.Option(False,     "--csv",                      help="Whether to output in CSV format or not"),
@@ -222,6 +232,22 @@ def parse (
                     temp = col.split("=")
                     rename[temp[0]] = temp[1]
                     selected_columns.append(temp[1])
+
+        #
+        # If asked to rename columns, do it
+        #
+        if names:
+            for col in names:
+                if col.find("=") == -1:
+                    print("Please specify a column name and its alternate name using =")
+                    sys.exit(1)
+                else:
+                    temp = col.split("=")
+                    rename[temp[0]] = temp[1]
+
+        #
+        # Read the files
+        #
         for file in files: #ctx.args:
             #
             # Read the file
