@@ -11,27 +11,64 @@ This is useful if you want to load a CSV file into a MySQL Database.
 To do so, it will parse the CSV file and generate a table definition.
 For each field, it will determine the maximum length of the field.
 
+
 # Usage
 
-Call the script with the -h as argument to get the help function:
+Call the script with the -help as argument
+to get the help function:
 
-$ csv2sql.py -h
+$ csv2sql.py --help
 
 # Example
 
-If you want to just parse the field lengths of a CSV file, you can do it like this:
+If you want to just parse the field
+lengths of a CSV file, you can do it like this:
 
-$ csv2sql.py my_file.csv
+$ csv2sql.py parse my_file.csv
 
-# To generate a complete table, you can do it like this:
+
+# Generate a Table
+
+To generate a complete table, you can do it like this:
 
 $ csv2sql.py -t my_file.csv
 
-# To generate a temporary table, you can do it like this:
 
-$ csv2sql.py -tt -t my_file.csv
+# Generate a Temporary Table
+
+To generate a temporary table, you can do it like this:
+
+$ csv2sql.py -tt my_file.csv
 
 
+# Show the Content of a CSV File
+
+To show the content of a CSV file, you can do it like this.
+
+$ csv2sql.py show my_file.csv
+
+The above command will only show the first 10 rows of the CSV file.
+To show more rows, you can do it like this:
+
+$ csv2sql.py show my_file.csv -r 100
+
+To show all rows, you can do it like this:
+
+$ csv2sql.py show my_file.csv -r -1
+
+
+# Generate a CSV File
+
+To show the content of a CSV file in CSV format, you can do it like this:
+
+$ csv2sql.py show --csv my_file.csv
+
+# Show, Rename, and Rearrange a Subset of Columns
+
+If you want to rearrange, and rename columns, and also only show a subset of 
+the columns, you can do it like this:
+
+$ csv2sql.py show -c "Tenant Product Type"=tpt -c "Solution Area"=solution_area 
 
 """
 
@@ -122,7 +159,7 @@ def parse (
 def show (
     ctx:        typer.Context,
     sepr:       str  = typer.Option(",",       "--separator", "-s", "--sep", help="The separator to use"),
-    rows:       int  = typer.Option(None,      "--rows", "-r",               help="The number of rows to show"),
+    rows:       int  = typer.Option(10,        "--rows", "-r",               help="The number of rows to show. -1 for all rows"),
     columns:    List[str] = typer.Option(None, "--columns", "-c",            help="The columns to show and their alternate names"),
     ascsv:      bool = typer.Option(False,     "--csv",                      help="Whether to output in CSV format or not"),
     files:      Optional[List[str]] = typer.Argument(None,                   help="The files to process; optionally use = to specify the table name"),
@@ -145,7 +182,7 @@ def show (
                     rename[temp[0]] = temp[1]
                     selected_columns.append(temp[1])
         for file in files: #ctx.args:
-            if rows is None:
+            if rows == -1:
                 df = pd.read_csv(file, sep=sepr)
             else:
                 df = pd.read_csv(file, sep=sepr, nrows=rows)
@@ -165,20 +202,14 @@ def show (
                 print(table)
 
 
-
-
+#
+# Count the number of lines in a file
+#
 def file_len(file_path):
     with open(file_path, "r") as f:
         for i, l in enumerate(f):
             pass
     return i + 1
-
-
-
-
-
-
-
 
 
 #
@@ -367,7 +398,6 @@ def doc (
     title:      str  = typer.Option(None,   help="The title of the document"),
     toc:        bool = typer.Option(False,  help="Whether to create a table of contents"),
 ) -> None:
-    print("doc")
     """
     Re-create the documentation and write it to the output file.
     """
