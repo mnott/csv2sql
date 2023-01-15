@@ -446,6 +446,7 @@ def run(file, sepr, table, temporary, prefix, dir, head, compressed, idx):
     maxl = 0
     sum_field_length = 0
     result = ""
+    hash_result = ""
 
     tablename=file
     if file.find("=") > -1:
@@ -515,18 +516,21 @@ def run(file, sepr, table, temporary, prefix, dir, head, compressed, idx):
     for i, hdr in enumerate(hdrs):
         hdr = f"`{hdr}`".ljust(maxl)
         sum_field_length += cols[i]
+        add_line = ""
         if table:
-            result += f"  {hdr} varchar({cols[i]})"
-            result += "," if i < len(hdrs)-1 or len(idx) >= 0 else ""
-            result += "\n"
+            add_line += f"  {hdr} varchar({cols[i]})"
+            add_line += "," if i < len(hdrs)-1 or len(idx) >= 0 else ""
+            add_line += "\n"
         else:
-            result += f"{i+1:2} {hdr} : {cols[i]:3}\n"
+            add_line += f"{i+1:2} {hdr} : {cols[i]:3}\n"
+        result += add_line
+        hash_result += add_line
 
 
     #
     # Create the hash
     #
-    hash_str = hashlib.md5(result.encode()).hexdigest()[:4]
+    hash_str = hashlib.md5(hash_result.encode()).hexdigest()[:4]
     hash_int = struct.unpack('<L', hash_str.encode())[0]
     hash_str = f"{hash_int:,}"
 
