@@ -26,7 +26,7 @@ If you want to just parse the field
 lengths of a CSV file, you can do it like this:
 
 ```bash
-$ csv2sql.py parse my_file.csv
+$ csv2sql.py table my_file.csv
 ```
 
 
@@ -35,7 +35,7 @@ $ csv2sql.py parse my_file.csv
 To generate a complete table, you can do it like this:
 
 ```bash
-$ csv2sql.py -t my_file.csv
+$ csv2sql.py table -t my_file.csv
 ```
 
 
@@ -44,7 +44,7 @@ $ csv2sql.py -t my_file.csv
 To generate a temporary table, you can do it like this:
 
 ```bash
-$ csv2sql.py -tt my_file.csv
+$ csv2sql.py table -tt my_file.csv
 ```
 
 
@@ -53,30 +53,28 @@ $ csv2sql.py -tt my_file.csv
 To show the content of a CSV file, you can do it like this.
 
 ```bash
-$ csv2sql.py show my_file.csv
+$ csv2sql.py parse my_file.csv
 ```
 
 The above command will only show the first 10 rows of the CSV file.
 To show more rows, you can do it like this:
 
 ```bash
-$ csv2sql.py show my_file.csv -r 100
+$ csv2sql.py parse my_file.csv -h 100
 ```
 
 To show all rows, you can do it like this:
 
 ```bash
-$ csv2sql.py show my_file.csv -r -1
+$ csv2sql.py parse my_file.csv -h -1
 ```
 
-
-# Generate a CSV File
-
-To show the content of a CSV file in CSV format, you can do it like this:
+or alls like this:
 
 ```bash
-$ csv2sql.py show --csv my_file.csv
+$ csv2sql.py parse my_file.csv -a
 ```
+
 
 # Show, Rename, and Rearrange a Subset of Columns
 
@@ -84,5 +82,53 @@ If you want to rearrange, and rename columns, and also only show a subset of
 the columns, you can do it like this:
 
 ```bash
-$ csv2sql.py show -c "Tenant Product Type"=tpt -c "Solution Area"=solution_area
+$ csv2sql.py parse -c "Tenant Product Type"=tpt -c "Solution Area"=solution_area
+```
+
+
+# Apply Regular Expressions to a Subset of Columns
+
+If you want to apply regular expressions to a subset of columns, you can do it like this:
+
+```bash
+$ csv2sql parse -h 5 bla.csv -c fr_id -c TID=tenant_id -replace tenant_id='s/S_0(.*)/\1/g'
+```
+
+You can also apply multiple regular expressions to a column:
+
+```bash
+$ csv2sql parse -h 5 bla.csv -c fr_id -c TID=tenant_id -r tenant_id='s/S_0(.*)/\1/g' -r tenant_id='s/74/99/g'
+```
+
+Note that regular expressions are applied in the order they are specified, on the
+optionally renamed columns.
+
+
+# Type Conversions
+
+If you want to convert a column to a different type, you can do it like this:
+
+```bash
+$ csv2sql parse bla.csv -c fr_status -c creation_date -c posting_date -t fr_status=str -t 'posting_date=date(%Y-%m-%d)(%Y)'
+```
+
+Note that you can in the case of a date field, it is perhaps easier to see it as
+a string and apply a regular expression to it:
+
+```bash
+$ csv2sql parse bla.csv -c fr_status -c creation_date -c posting_date -t fr_status=str -r posting_date='s/(\d\d\d\d)-.*/\1/'
+```
+
+Note that type conversions are applied on the original column names, not on the
+potentially renamed columns.
+
+Note also that if you give no type conversions, all columns are read as strings.
+
+
+# Generate a CSV File
+
+To show the content of a CSV file in CSV format, you can do it like this:
+
+```bash
+$ csv2sql.py parse --csv my_file.csv
 ```

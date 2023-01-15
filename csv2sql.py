@@ -24,51 +24,87 @@ $ csv2sql.py --help
 If you want to just parse the field
 lengths of a CSV file, you can do it like this:
 
-$ csv2sql.py parse my_file.csv
+$ csv2sql.py table my_file.csv
 
 
 # Generate a Table
 
 To generate a complete table, you can do it like this:
 
-$ csv2sql.py -t my_file.csv
+$ csv2sql.py table -t my_file.csv
 
 
 # Generate a Temporary Table
 
 To generate a temporary table, you can do it like this:
 
-$ csv2sql.py -tt my_file.csv
+$ csv2sql.py table -tt my_file.csv
 
 
 # Show the Content of a CSV File
 
 To show the content of a CSV file, you can do it like this.
 
-$ csv2sql.py show my_file.csv
+$ csv2sql.py parse my_file.csv
 
 The above command will only show the first 10 rows of the CSV file.
 To show more rows, you can do it like this:
 
-$ csv2sql.py show my_file.csv -r 100
+$ csv2sql.py parse my_file.csv -h 100
 
 To show all rows, you can do it like this:
 
-$ csv2sql.py show my_file.csv -r -1
+$ csv2sql.py parse my_file.csv -h -1
 
+or alls like this:
 
-# Generate a CSV File
+$ csv2sql.py parse my_file.csv -a
 
-To show the content of a CSV file in CSV format, you can do it like this:
-
-$ csv2sql.py show --csv my_file.csv
 
 # Show, Rename, and Rearrange a Subset of Columns
 
 If you want to rearrange, and rename columns, and also only show a subset of 
 the columns, you can do it like this:
 
-$ csv2sql.py show -c "Tenant Product Type"=tpt -c "Solution Area"=solution_area 
+$ csv2sql.py parse -c "Tenant Product Type"=tpt -c "Solution Area"=solution_area 
+
+
+# Apply Regular Expressions to a Subset of Columns
+
+If you want to apply regular expressions to a subset of columns, you can do it like this:
+
+$ csv2sql parse -h 5 bla.csv -c fr_id -c TID=tenant_id -replace tenant_id='s/S_0(.*)/\1/g'
+
+You can also apply multiple regular expressions to a column:
+
+$ csv2sql parse -h 5 bla.csv -c fr_id -c TID=tenant_id -r tenant_id='s/S_0(.*)/\1/g' -r tenant_id='s/74/99/g'
+
+Note that regular expressions are applied in the order they are specified, on the
+optionally renamed columns.
+
+
+# Type Conversions
+
+If you want to convert a column to a different type, you can do it like this:
+
+$ csv2sql parse bla.csv -c fr_status -c creation_date -c posting_date -t fr_status=str -t 'posting_date=date(%Y-%m-%d)(%Y)'
+
+Note that you can in the case of a date field, it is perhaps easier to see it as
+a string and apply a regular expression to it:
+
+$ csv2sql parse bla.csv -c fr_status -c creation_date -c posting_date -t fr_status=str -r posting_date='s/(\d\d\d\d)-.*/\1/'
+
+Note that type conversions are applied on the original column names, not on the
+potentially renamed columns.
+
+Note also that if you give no type conversions, all columns are read as strings.
+
+
+# Generate a CSV File
+
+To show the content of a CSV file in CSV format, you can do it like this:
+
+$ csv2sql.py parse --csv my_file.csv
 
 """
 
@@ -113,8 +149,7 @@ app = typer.Typer(
     no_args_is_help=True,
     help="Parse CSV files to generate MySQL tables",
     epilog="""
-    To get help about the parser, call it with the --help option:
-./csv2sql.py parse --help
+    To get help about the parser, call it with the --help option.
     """
 )
 
@@ -128,14 +163,14 @@ app = typer.Typer(
 #
 #@app.callback(invoke_without_command=True)
 @app.command()
-def parse (
+def table (
     ctx:        typer.Context,
     sepr:       str  = typer.Option(",",    "--separator", "-s", "--sep",   help="The separator to use"),
-    table:      bool = typer.Option(False,  "--table", "-t",                help="Whether to create a table or not"),
+    table:      bool = typer.Option(False,  "--table",     "-t",            help="Whether to create a table or not"),
     temporary:  bool = typer.Option(False,  "--temptable", "-tt",           help="Whether to create a temporary table or not"),  
-    prefix:     str  = typer.Option("",     "--prefix", "-p",               help="The prefix to use for the table name"),
-    dir:        str  = typer.Option(None,   "--dir", "-d",                  help="The load directory on the Server"),
-    head:       int  = typer.Option(0,      "--head", "-h",                 help="The number of header lines to skip"),
+    prefix:     str  = typer.Option("",     "--prefix",    "-p",            help="The prefix to use for the table name"),
+    dir:        str  = typer.Option(None,   "--dir",       "-d",            help="The load directory on the Server"),
+    head:       int  = typer.Option(0,      "--head",      "-h",            help="The number of header lines to skip"),
     compressed: bool = typer.Option(False,  "--compressed", "-c",           help="Whether to use ROW_FORMAT=COMPRESSED or not"),
     idx:        Optional[List[str]] = typer.Option(None, "--index", "-i",   help="The index to use for the table"),
     files:      Optional[List[str]] = typer.Argument(None,                  help="The files to process"),
@@ -152,15 +187,18 @@ def parse (
     
 
 #
-# Show the Content of a CSV File and optionally convert it to a csv file
+# Parse the Content of a CSV File and optionally convert it to a csv file
 #
 #@app.callback(invoke_without_command=True)
 @app.command()
-def show (
+def parse (
     ctx:        typer.Context,
     sepr:       str  = typer.Option(",",       "--separator", "-s", "--sep", help="The separator to use"),
-    rows:       int  = typer.Option(10,        "--rows", "-r",               help="The number of rows to show. -1 for all rows"),
-    columns:    List[str] = typer.Option(None, "--columns", "-c",            help="The columns to show and their alternate names"),
+    head:       int  = typer.Option(10,        "--head",      "-h",          help="The number of rows to show. -1 for all rows"),
+    all:        bool = typer.Option(False,     "--all",       "-a",          help="Whether to show all rows or not"),
+    columns:    List[str] = typer.Option(None, "--columns",   "-c",          help="The columns to show and their alternate names"),
+    replace:    List[str] = typer.Option(None, "--replace",   "-r",          help="The regular expressions to apply to the specified columns"),
+    types:      List[str] = typer.Option(None, "--types",     "-t",          help="The types to use for the specified columns"),
     ascsv:      bool = typer.Option(False,     "--csv",                      help="Whether to output in CSV format or not"),
     files:      Optional[List[str]] = typer.Argument(None,                   help="The files to process; optionally use = to specify the table name"),
 ) -> None:
@@ -173,6 +211,9 @@ def show (
     else:
         rename = {}
         selected_columns = []
+        #
+        # If asked to select columns, do it, and rename them if asked
+        #
         if columns:
             for col in columns:
                 if col.find("=") == -1:
@@ -182,23 +223,123 @@ def show (
                     rename[temp[0]] = temp[1]
                     selected_columns.append(temp[1])
         for file in files: #ctx.args:
-            if rows == -1:
-                df = pd.read_csv(file, sep=sepr)
+            #
+            # Read the file
+            #            
+            if types:
+                #
+                # If we have types, we need to apply them
+                #
+                converters = {}
+                converter_dict = {
+                    'int': lambda x: int(x) if x else None,
+                    'float': lambda x: int(x) if x else None,
+                    'str': str,
+                }
+                for t in types:
+                    col, col_type = t.split("=")
+                    #
+                    # If the type is date, we need to parse the format
+                    # This is hard: we need to find the date format, and the output format.
+                    # We then need to create lambda functions that will convert the date to the output format.
+                    # As we need to create a given format for each given column, we need to use eval() to create the lambda function.
+                    # This is not safe, but as a simple command line tool, not too much of a problem.
+                    #
+                    if col_type.startswith("date"):
+                        m = re.search('date\((.*?)\)\((.*?)\)', col_type)
+                        if m:
+                            date_type = m.group(1)
+                            output_format = m.group(2)
+                            converter_dict[col] = eval(f"lambda x: pd.to_datetime(x, format=\"{date_type}\").strftime(\"{output_format}\") if x else None")
+                            col_type="date"
+                        else:
+                            print(f"Missing date format for column {col}. Skipping.")
+                    if col_type in converter_dict: # For a normal type, we just use the converter
+                        converters[col] = converter_dict[col_type]
+                    elif col_type == "date": # For a date, we use the converter we created above
+                        converters[col] = converter_dict[col]
+                    else: # For anything else, we skip
+                        print(f"Invalid type {col_type} for column {col}. Skipping.")
+
+                #
+                # Read in the file
+                #
+                if head == -1 or all:
+                    df = pd.read_csv(file, sep=sepr, converters=converters)
+                else:
+                    df = pd.read_csv(file, sep=sepr, nrows=head, converters=converters)
+            #
+            # If we don't have types, we can just read the file
+            #
             else:
-                df = pd.read_csv(file, sep=sepr, nrows=rows)
+                if head == -1 or all:
+                    df = pd.read_csv(file, sep=sepr, dtype=str)
+                else:
+                    df = pd.read_csv(file, sep=sepr, nrows=head, dtype=str)
+
+            #
+            # Deal with missing values
+            #
             df = df.fillna("")
+
+            #
+            # If asked to rename columns, do it
+            #
             if rename:
                 df = df.rename(columns=rename)
+
+            #
+            # If asked to select, and reorder columns, do it
+            #
             if selected_columns:
                 df = df[selected_columns]
+            #
+            # If asked to do regexes, do them
+            #
+            if replace:
+                replace_columns = {}
+                for rep in replace:
+                    temp = rep.split("=")
+                    if len(temp) == 2:
+                        replace_columns[temp[0]] = temp[1]
+                    else:
+                        replace_columns[temp[0]] = temp[1]
+                    if replace_columns:
+                        for col in replace_columns:
+                            if col in df.columns:
+                                rep = replace_columns[col]
+                                match = re.match(r's/([^/]*)/([^/]*)/([g|i]*)', rep)
+                                if match:
+                                    search, replace, flags = match.groups()
+                                    if 'g' in flags:
+                                        df[col] = df[col].apply(lambda x: re.sub(search, replace, x))
+                                    else:
+                                        df[col] = df[col].apply(lambda x: re.sub(search, replace, x, 1))
+                                else:
+                                    print(f"Invalid replace string {rep}")
+
+            #
+            # If asked to output in CSV format, do it.
+            # Otherwise, output in table format
+            #
             if ascsv:
                 df.to_csv(sys.stdout, sep=sepr, index=False, quoting=csv.QUOTE_NONNUMERIC, quotechar='"',escapechar='\\')
             else:
                 table = rich.table.Table(show_header=True, header_style="bold magenta")
                 for col in df.columns:
                     table.add_column(col, justify="left", style="cyan", no_wrap=False)
-                for row in df.head(rows).itertuples(index=False):
-                    table.add_row(*[str(i) for i in row])
+                #
+                # If asked to output a certain number of lines, but not all, do it
+                #
+                if head > -1 and not all:
+                    for row in df.head(head).itertuples(index=False):
+                        table.add_row(*[str(i) for i in row])
+                #
+                # Else if asked to output all lines, do it
+                #
+                else:
+                    for row in df.itertuples(index=False):
+                        table.add_row(*[str(i) for i in row])
                 print(table)
 
 
@@ -210,7 +351,6 @@ def file_len(file_path):
         for i, l in enumerate(f):
             pass
     return i + 1
-
 
 #
 # Command: Doc
