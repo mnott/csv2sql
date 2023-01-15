@@ -132,7 +132,7 @@ If you want to convert a column to a different type, you can do it like this:
 $ csv2sql parse bla.csv -c fr_status -c creation_date -c posting_date -t fr_status=str -t 'posting_date=date(%Y-%m-%d)(%Y)'
 ```
 
-Note that you can in the case of a date field, it is perhaps easier to see it as
+Note that in the case of a date field, it is perhaps easier to see it as
 a string and apply a regular expression to it:
 
 ```bash
