@@ -45,15 +45,21 @@ import re
 import csv
 import hashlib
 import struct
+import pandas as pd
 
 from os import path
 
 #
 # More Beautiful Tracebacks and Pretty Printing
 #
+import pydoc
+from io import StringIO
 from rich import print;
 from rich import traceback;
 from rich import pretty;
+from rich.progress import Progress
+import rich.table # used to print a table
+from rich.console import Console
 pretty.install()
 traceback.install()
 
@@ -109,6 +115,73 @@ def parse (
     
 
 #
+# Show the Content of a CSV File and optionally convert it to a csv file
+#
+#@app.callback(invoke_without_command=True)
+@app.command()
+def show (
+    ctx:        typer.Context,
+    sepr:       str  = typer.Option(",",       "--separator", "-s", "--sep", help="The separator to use"),
+    rows:       int  = typer.Option(None,      "--rows", "-r",               help="The number of rows to show"),
+    columns:    List[str] = typer.Option(None, "--columns", "-c",            help="The columns to show and their alternate names"),
+    ascsv:      bool = typer.Option(False,     "--csv",                      help="Whether to output in CSV format or not"),
+    files:      Optional[List[str]] = typer.Argument(None,                   help="The files to process; optionally use = to specify the table name"),
+) -> None:
+    """
+    Parse CSV files to generate MySQL tables
+    """
+    if len(files) == 0: # len(ctx.args) == 0:
+        print("Please specify a file name.")
+        sys.exit(1)
+    else:
+        rename = {}
+        selected_columns = []
+        if columns:
+            for col in columns:
+                if col.find("=") == -1:
+                    selected_columns.append(col)
+                else:
+                    temp = col.split("=")
+                    rename[temp[0]] = temp[1]
+                    selected_columns.append(temp[1])
+        for file in files: #ctx.args:
+            if rows is None:
+                df = pd.read_csv(file, sep=sepr)
+            else:
+                df = pd.read_csv(file, sep=sepr, nrows=rows)
+            df = df.fillna("")
+            if rename:
+                df = df.rename(columns=rename)
+            if selected_columns:
+                df = df[selected_columns]
+            if ascsv:
+                df.to_csv(sys.stdout, sep=sepr, index=False, quoting=csv.QUOTE_NONNUMERIC, quotechar='"',escapechar='\\')
+            else:
+                table = rich.table.Table(show_header=True, header_style="bold magenta")
+                for col in df.columns:
+                    table.add_column(col, justify="left", style="cyan", no_wrap=False)
+                for row in df.head(rows).itertuples(index=False):
+                    table.add_row(*[str(i) for i in row])
+                print(table)
+
+
+
+
+def file_len(file_path):
+    with open(file_path, "r") as f:
+        for i, l in enumerate(f):
+            pass
+    return i + 1
+
+
+
+
+
+
+
+
+
+#
 # Command: Doc
 #
 @app.command()
@@ -148,6 +221,7 @@ def doc (
     print(result)
 
 
+
 #
 # Process a file
 #
@@ -158,39 +232,49 @@ def run(file, sepr, table, temporary, prefix, dir, head, compressed, idx):
     sum_field_length = 0
     result = ""
 
+    tablename=file
+    if file.find("=") > -1:
+        temp = file.split("=")
+        file = temp[0]
+        tablename = temp[1]
+
     abs_path = path.abspath(file)
 
-    csv_reader = csv.reader(open(file, 'r', encoding='utf8'), delimiter=sepr, quotechar='\"')
+    nrows = file_len(file)
+    with Progress() as progress:
+        task = progress.add_task(f"Parsing {file}", total=nrows)
+        csv_reader = csv.reader(open(file, 'r', encoding='utf8'), delimiter=sepr, quotechar='\"')
 
-    rows = 0
-    rows_skipped = 0
+        rows = 0
+        rows_skipped = 0
 
-    if head is not None and head > 0:
-        rows_skipped = head
+        if head is not None and head > 0:
+            rows_skipped = head
 
-    #
-    # Get the column names and lengths
-    #
-    for row in csv_reader:
-        rows += 1
-        if rows_skipped > 0:
-            rows_skipped -= 1
-            continue
-        if rows == 1:
-            hdrs = row
-            for hdr in hdrs:
-                hdr = hdr.lower()
-                hdr = re.sub(r'[^^a-zA-Z0-9,]', '_', hdr)
-                maxl = len(hdr) if maxl < len(hdr) else maxl
-            continue
-        else:
-            col = 0
-            for item in row:
-                if col >= len(cols):
-                    cols.append(len(item))
-                else:
-                    cols[col] = len(item) if cols[col] < len(item) else cols[col]
-                col += 1
+        #
+        # Get the column names and lengths
+        #
+        for row in csv_reader:
+            progress.update(task, advance=1)
+            rows += 1
+            if rows_skipped > 0:
+                rows_skipped -= 1
+                continue
+            if rows == 1:
+                hdrs = row
+                for hdr in hdrs:
+                    hdr = hdr.lower()
+                    hdr = re.sub(r'[^^a-zA-Z0-9,]', '_', hdr)
+                    maxl = len(hdr) if maxl < len(hdr) else maxl
+                continue
+            else:
+                col = 0
+                for item in row:
+                    if col >= len(cols):
+                        cols.append(len(item))
+                    else:
+                        cols[col] = len(item) if cols[col] < len(item) else cols[col]
+                    col += 1
 
     #
     # Create the table header
@@ -202,11 +286,11 @@ def run(file, sepr, table, temporary, prefix, dir, head, compressed, idx):
         temporary = ""
 
     if table:
-        if file.endswith('.csv'):
-            file = path.splitext(file)[0]
-        file = file.lower()
-        result += f"DROP {temporary}TABLE IF EXISTS `{prefix}{file}`;\n"
-        result += f"CREATE {temporary}TABLE `{prefix}{file}` (\n"
+        if tablename.endswith('.csv'):
+            tablename = path.splitext(tablename)[0]
+        tablename = tablename.lower()
+        result += f"DROP {temporary}TABLE IF EXISTS `{prefix}{tablename}`;\n"
+        result += f"CREATE {temporary}TABLE `{prefix}{tablename}` (\n"
 
 
     #
@@ -241,9 +325,9 @@ def run(file, sepr, table, temporary, prefix, dir, head, compressed, idx):
 
         file = path.basename(file)
         if dir is not None:
-            result += f"load data infile '{dir}/{file}' into table `{prefix}{file}`\n"
+            result += f"load data infile '{dir}/{file}' into table `{prefix}{tablename}`\n"
         else:
-            result += f"load data infile '{abs_path}' into table `{prefix}{file}`\n"
+            result += f"load data infile '{abs_path}' into table `{prefix}{tablename}`\n"
         result += f"  fields terminated by '{sepr}'\n"
         result += "  optionally enclosed by '\"'\n"
         result += "  ignore "
@@ -271,6 +355,45 @@ def run(file, sepr, table, temporary, prefix, dir, head, compressed, idx):
     #
     print(result)
 
+
+#
+# Command: Doc
+#
+@app.command()
+def doc (
+    ctx:        typer.Context,
+    title:      str  = typer.Option(None,   help="The title of the document"),
+    toc:        bool = typer.Option(False,  help="Whether to create a table of contents"),
+) -> None:
+    print("doc")
+    """
+    Re-create the documentation and write it to the output file.
+    """
+    import importlib
+    import importlib.util
+    import sys
+    import os
+    import doc2md
+
+    def import_path(path):
+        module_name = os.path.basename(path).replace("-", "_")
+        spec = importlib.util.spec_from_loader(
+            module_name,
+            importlib.machinery.SourceFileLoader(module_name, path),
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        sys.modules[module_name] = module
+        return module
+
+    mod_name = os.path.basename(__file__)
+    if mod_name.endswith(".py"):
+        mod_name = mod_name.rsplit(".py", 1)[0]
+    atitle = title or mod_name.replace("_", "-")
+    module = import_path(__file__)
+    docstr = module.__doc__
+    result = doc2md.doc2md(docstr, atitle, toc=toc, min_level=0)
+    print(result)
 
 
 #
