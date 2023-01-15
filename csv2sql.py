@@ -348,7 +348,9 @@ def run(file, sepr, table, temporary, prefix, dir, head, compressed, idx):
     #
     # Add the total field length and the hash to the result
     #
-    result += f"\n-- Sum of Field Lengths: {sum_field_length} (Hash: {hash_str})\n"
+    formatted_rows = "{:,}".format(rows)
+    formatted_length = "{:,}".format(sum_field_length)
+    result += f"\n-- Rows: {formatted_rows}. Sum of Field Lengths: {formatted_length}. Hash: {hash_str}.\n"
 
     #
     # Return the result
