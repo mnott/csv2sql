@@ -78,6 +78,13 @@ Note that if you did use the -n option, you can also use the -c option to
 then further rearrange the columns.
 
 
+# Ommit Columns
+
+If you want to omit some columns, you can do it like this:
+
+$ csv2sql.py parse -o "Tenant Product Type" -o "Solution Area"
+
+
 # Apply Regular Expressions to a Subset of Columns
 
 If you want to apply regular expressions to a subset of columns, you can do it like this:
@@ -207,6 +214,7 @@ def parse (
     all:        bool = typer.Option(False,     "--all",       "-a",          help="Whether to show all rows or not"),
     columns:    List[str] = typer.Option(None, "--columns",   "-c",          help="The columns to show and their alternate names"),
     names:      List[str] = typer.Option(None, "--names",     "-n",          help="If you just want to rename columns, but not select them"),
+    omit:       List[str] = typer.Option(None, "--omit",      "-o",          help="The columns to omit"),
     replace:    List[str] = typer.Option(None, "--replace",   "-r",          help="The regular expressions to apply to the specified columns"),
     types:      List[str] = typer.Option(None, "--types",     "-t",          help="The types to use for the specified columns"),
     ascsv:      bool = typer.Option(False,     "--csv",                      help="Whether to output in CSV format or not"),
@@ -319,6 +327,16 @@ def parse (
             #
             if selected_columns:
                 df = df[selected_columns]
+
+            #
+            # If asked to omit columns, do it
+            #
+            if omit:
+                for col in omit:
+                    if col in df.columns:
+                        df = df.drop(col, axis=1)
+
+
             #
             # If asked to do regexes, do them
             #

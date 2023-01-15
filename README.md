@@ -97,6 +97,15 @@ Note that if you did use the -n option, you can also use the -c option to
 then further rearrange the columns.
 
 
+# Ommit Columns
+
+If you want to omit some columns, you can do it like this:
+
+```bash
+$ csv2sql.py parse -o "Tenant Product Type" -o "Solution Area"
+```
+
+
 # Apply Regular Expressions to a Subset of Columns
 
 If you want to apply regular expressions to a subset of columns, you can do it like this:
