@@ -522,6 +522,15 @@ def run(file, sepr, table, temporary, prefix, dir, head, compressed, idx):
         else:
             result += f"{i+1:2} {hdr} : {cols[i]:3}\n"
 
+
+    #
+    # Create the hash
+    #
+    hash_str = hashlib.md5(result.encode()).hexdigest()[:4]
+    hash_int = struct.unpack('<L', hash_str.encode())[0]
+    hash_str = f"{hash_int:,}"
+
+
     #
     # Create the table footer
     #
@@ -551,14 +560,6 @@ def run(file, sepr, table, temporary, prefix, dir, head, compressed, idx):
         else:
             result += "1"
         result += " rows;\n"
-
-
-    #
-    # Create the hash
-    #
-    hash_str = hashlib.md5(result.encode()).hexdigest()[:4]
-    hash_int = struct.unpack('<L', hash_str.encode())[0]
-    hash_str = f"{hash_int:,}"
 
     #
     # Add the total field length and the hash to the result
