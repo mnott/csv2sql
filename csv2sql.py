@@ -78,7 +78,7 @@ Note that if you did use the -n option, you can also use the -c option to
 then further rearrange the columns.
 
 
-# Ommit Columns
+# Omit Columns
 
 If you want to omit some columns, you can do it like this:
 
