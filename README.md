@@ -41,6 +41,20 @@ If you want to just parse the field lengths of a CSV file, you can do it like th
 $ csv2sql.py table my_file.csv
 ```
 
+### Sample just a small part of the file
+
+You can use the `-m` option to sample just a small part of the file:
+
+```bash
+$ csv2sql.py table -m 100 my_file.csv
+```
+
+Note that this will not give you the correct field lengths, but it will give you a
+more or less good idea of the field lengths - depending on how big your sample is.
+For a guaranteed correct result, you should use the `-m -1` option or not use
+the `-m` option at all. The `-a` option is a shortcut for `-m -1`.
+
+
 ### Generate a Table Definition
 
 To generate a complete table defintion, you can do it like this:

@@ -36,6 +36,18 @@ If you want to just parse the field lengths of a CSV file, you can do it like th
 
 $ csv2sql.py table my_file.csv
 
+### Sample just a small part of the file
+
+You can use the `-m` option to sample just a small part of the file:
+
+$ csv2sql.py table -m 100 my_file.csv
+
+Note that this will not give you the correct field lengths, but it will give you a 
+more or less good idea of the field lengths - depending on how big your sample is.
+For a guaranteed correct result, you should use the `-m -1` option or not use
+the `-m` option at all. The `-a` option is a shortcut for `-m -1`.
+
+
 ### Generate a Table Definition
 
 To generate a complete table defintion, you can do it like this:
@@ -464,6 +476,8 @@ def table (
     prefix:     str  = typer.Option("",        "--prefix",     "-p",          help="The prefix to use for the table name"),
     dir:        str  = typer.Option(None,      "--dir",        "-d",          help="The load directory on the Server"),
     head:       int  = typer.Option(0,         "--head",       "-h",          help="The number of header lines to skip"),
+    all:        bool = typer.Option(False,     "--all",        "-a",          help="Whether to read all rows or not"),
+    maxr:       int  = typer.Option(-1,        "--max",        "-m",          help="The number of rows to read. -1 for all rows"),
     names:      List[str] = typer.Option(None, "--names",      "-n",          help="If you want to rename columns"),
     formats:    List[str] = typer.Option(None, "--formats",    "-f",          help="The formats to use for the specified columns"),
     default:    str  = typer.Option("DEFAULT NULL",  "--default",    "-D",    help="The default value to use for the specified columns"),
@@ -510,7 +524,10 @@ def table (
             nrows = file_len(file)
             with Progress() as progress: # Create a progress bar
                 task = progress.add_task(f"Parsing {file}", total=nrows)
-                df = read_file(file, sepr, -1, head)
+                if all:
+                    df = read_file(file, sepr, -1, head)
+                else:
+                    df = read_file(file, sepr, maxr, head)
 
                 #
                 # If asked to rename columns, do it
