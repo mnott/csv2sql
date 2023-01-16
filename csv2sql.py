@@ -127,21 +127,35 @@ To show more rows, you can do it like this:
 
 $ csv2sql.py parse my_file.csv -m 100
 
-#### Show all rows
+### Paging
 
-To show all rows, you can do it like this:
+There are two ways to page through the results:
+
+- You can define the number of rows to even read from the input file,
+  and how many rows to skip at the beginning:
+
+$ csv2sql.py parse my_file.csv -m 10 -h 5
+
+The above command reads 10 rows from the input file, skipping the first 5 rows.
+
+If you want to read all rows, you can do it like this:
 
 $ csv2sql.py parse my_file.csv -m -1
 
-or also like this:
+or
 
 $ csv2sql.py parse my_file.csv -a
 
-#### Define the number of lines to skip
+The `-a` option is a shortcut for `-m -1`. It will become familiar to you
+as this is what is often needed when you want to filter the input file.
 
-To define the number of lines to skip, you can do it like this:
 
-$ csv2sql.py table -t my_file.csv -h 2
+- You can define the number of rows that you want to output, independent from
+  the number of rows that you read from the input file:
+
+$ csv2sql.py parse my_file.csv -M 10 -H 5
+
+The above command shows 10 rows of the output, skipping the first 5 rows.
 
 
 ### Rename Columns
@@ -520,8 +534,8 @@ def table (
                 rows = 0
                 rows_skipped = 0
 
-                if max is not None and max > 0:
-                    rows_skipped = max
+                if head is not None and head > 0:
+                    rows_skipped = head
 
 
                 #
@@ -546,9 +560,9 @@ def table (
                     col = 0
                     for item in row:
                         if col >= len(cols):
-                            cols.append(len(item))
+                            cols.append(len(f"{item}"))
                         else:
-                            cols[col] = len(item) if cols[col] < len(item) else cols[col]
+                            cols[col] = len(f"{item}") if cols[col] < len(f"{item}") else cols[col]
                         col += 1
 
             #
@@ -664,9 +678,11 @@ def table (
 def parse (
     ctx:        typer.Context,
     sepr:       str  = typer.Option(None,      "--separator", "-s", "--sep", help="The separator to use"),
-    head:       int  = typer.Option(0,         "--head",      "-h",          help="The number of header lines to skip"),
-    max:        int  = typer.Option(10,        "--max",       "-m",          help="The number of rows to show. -1 for all rows"),
-    all:        bool = typer.Option(False,     "--all",       "-a",          help="Whether to show all rows or not"),
+    head:       int  = typer.Option(0,         "--head",      "-h",          help="The number of header lines to skip when reading"),
+    headp:      int  = typer.Option(0,         "--headp",     "-H",          help="The number of header lines to skip when showing"),
+    all:        bool = typer.Option(False,     "--all",       "-a",          help="Whether to read all rows or not"),
+    maxr:       int  = typer.Option(10,        "--max",       "-m",          help="The number of rows to read. -1 for all rows"),
+    maxp:       int  = typer.Option(-1,        "--maxp",      "-M",          help="The number of rows to show. -1 for all rows"),
     columns:    List[str] = typer.Option(None, "--columns",   "-c",          help="The columns to show and their alternate names"),
     names:      List[str] = typer.Option(None, "--names",     "-n",          help="If you just want to rename columns, but not select them"),
     omit:       List[str] = typer.Option(None, "--omit",      "-O",          help="The columns to omit"),
@@ -784,19 +800,19 @@ def parse (
                 #
                 # Read in the file
                 #
-                if max == -1 or all:
+                if maxr == -1 or all:
                     df = read_file(file, sepr, -1, head, converters)
                 else:
-                    df = read_file(file, sepr, max, head, converters)
+                    df = read_file(file, sepr, maxr, head, converters)
 
             #
             # If we don't have types, we can just read the file
             #
             else:
-                if max == -1 or all:
+                if maxr == -1 or all:
                     df = read_file(file, sepr, -1, head)
                 else:
-                    df = read_file(file, sepr, max, head)
+                    df = read_file(file, sepr, maxr, head)
 
 
             #
@@ -885,13 +901,19 @@ def parse (
             # If asked to output in HTML format, do it
             #
             if ashtml:
-                print(df.to_html(index=False))
+                if maxp > -1:
+                    print(df.iloc[headp:].head(maxp).to_html(index=False))
+                else:
+                    print(df.iloc[headp:].to_html(index=False))
 
             #
             # If asked to output in markdown format, do it
             #
             elif asmd:
-                print(df.to_markdown(index=False))
+                if maxp > -1:
+                    print(df.iloc[headp:].head(maxp).to_markdown(index=False))
+                else:
+                    print(df.iloc[headp:].to_markdown(index=False))
 
             #
             # If asked to output in SQL format, do it
@@ -925,6 +947,12 @@ def parse (
                     connect_args = json.loads(dbargs)
                 else:
                     connect_args = {}
+
+                if maxp > -1:
+                    df = df.iloc[headp:].head(maxp)
+                else:
+                    df = df.iloc[headp:]
+                    
                 total_rows = len(df)
                 if chunk_size > total_rows:
                     chunk_size = total_rows//1000 # Calculate the chunk size
@@ -965,19 +993,28 @@ def parse (
             # If asked to output in JSON format, do it
             #
             elif asjson:
-                print(df.to_json(orient='records'))
+                if maxp > -1:
+                    print(df.iloc[headp:].head(maxp).to_json(orient='records'))
+                else:
+                    print(df.iloc[headp:].to_json(orient='records'))
 
             #
             # If asked to output in pretty JSON format, do it
             #
             elif aspjson:
-                print(df.to_json(orient='records', indent=4))
+                if maxp > -1:
+                    print(df.iloc[headp:].head(maxp).to_json(orient='records', indent=4))
+                else:
+                    print(df.iloc[headp:].to_json(orient='records', indent=4))
 
             #
             # If asked to output in Excel format, do it
             #
             elif asexcel is not None:
-                df.to_excel(asexcel, index=False)
+                if maxp > -1:
+                    df.iloc[headp:].head(maxp).to_excel(asexcel, index=False)
+                else:
+                    df.iloc[headp:].to_excel(asexcel, index=False)
 
             #
             # If asked to output in CSV format, do it.
@@ -986,7 +1023,10 @@ def parse (
             elif ascsv:
                 if sepr is None:
                     sepr = _separator
-                df.to_csv(sys.stdout, sep=sepr, index=False, quoting=csv.QUOTE_NONNUMERIC, quotechar='"',escapechar='\\')
+                if maxp > -1:
+                    df.iloc[headp:].head(maxp).to_csv(sys.stdout, sep=sepr, index=False, quoting=csv.QUOTE_NONNUMERIC, quotechar='"',escapechar='\\')
+                else:
+                    df.iloc[headp:].to_csv(sys.stdout, sep=sepr, index=False, quoting=csv.QUOTE_NONNUMERIC, quotechar='"',escapechar='\\')
             
             #
             # If all else fails, output table
@@ -998,14 +1038,14 @@ def parse (
                 #
                 # If asked to output a certain number of lines, but not all, do it
                 #
-                if max > -1 and not all:
-                    for row in df.head(max).itertuples(index=False):
+                if maxp > -1:
+                    for row in df.iloc[headp:].head(maxp).itertuples(index=False):
                         table.add_row(*[str(i) for i in row])
                 #
                 # Else if asked to output all lines, do it
                 #
                 else:
-                    for row in df.itertuples(index=False):
+                    for row in df.iloc[headp:].itertuples(index=False):
                         table.add_row(*[str(i) for i in row])
                 print(table)
 

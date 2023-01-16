@@ -158,27 +158,43 @@ To show more rows, you can do it like this:
 $ csv2sql.py parse my_file.csv -m 100
 ```
 
-#### Show all rows
+### Paging
 
-To show all rows, you can do it like this:
+There are two ways to page through the results:
+
+- You can define the number of rows to even read from the input file,
+  and how many rows to skip at the beginning:
+
+```bash
+$ csv2sql.py parse my_file.csv -m 10 -h 5
+```
+
+The above command reads 10 rows from the input file, skipping the first 5 rows.
+
+If you want to read all rows, you can do it like this:
 
 ```bash
 $ csv2sql.py parse my_file.csv -m -1
 ```
 
-or also like this:
+or
 
 ```bash
 $ csv2sql.py parse my_file.csv -a
 ```
 
-#### Define the number of lines to skip
+The `-a` option is a shortcut for `-m -1`. It will become familiar to you
+as this is what is often needed when you want to filter the input file.
 
-To define the number of lines to skip, you can do it like this:
+
+- You can define the number of rows that you want to output, independent from
+  the number of rows that you read from the input file:
 
 ```bash
-$ csv2sql.py table -t my_file.csv -h 2
+$ csv2sql.py parse my_file.csv -M 10 -H 5
 ```
+
+The above command shows 10 rows of the output, skipping the first 5 rows.
 
 
 ### Rename Columns
@@ -295,7 +311,8 @@ $ csv2sql parse tpt_assignments_input.xlsx -n "Tenant Product Type"=tpt -q 'tpt.
 #### Here's a very complex query
 
 ```bash
-$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -f product_id=int -q 'product_id>8003000' -q 'product_id<8004000' -q 'product_name contains "Ariba"' -q 'not contact contains "Olaf"' -a
+$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -f product_id=int -q 'product_id>8003000' -q 'product_id<8004000' -q 'product_name contains "Ariba"' -q 'not contact 
+contains "Olaf"' -a
 ```
 
 #### Starts With Query
@@ -323,7 +340,8 @@ $ csv2sql parse sold_to_party.csv -q 'customer_name.str.startswith("Kennametal")
 Here is an even more complex query showing how to sort the output:
 
 ```bash
-$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -f product_id=int -q 'product_id>8003000' -q 'product_id<8004000' -a -q 'product_name contains "Ariba"' -q 'not contact contains "Olaf"' -o -product_id -o product_name
+$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -f product_id=int -q 'product_id>8003000' -q 'product_id<8004000' -a -q 'product_name contains "Ariba"' -q 'not contact 
+contains "Olaf"' -o -product_id -o product_name
 ```
 
 You can give any number of ordering options, and they will be applied in the order;
