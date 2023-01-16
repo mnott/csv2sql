@@ -298,6 +298,12 @@ $ csv2sql parse tpt_assignments_input.xlsx -n "Tenant Product Type"=tpt -q 'tpt.
 $ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -f product_id=int -q 'product_id>8003000' -q 'product_id<8004000' -q 'product_name contains "Ariba"' -q 'not contact contains "Olaf"' -a
 ```
 
+#### Starts With Query
+
+```bash
+$ csv2sql parse sold_to_party.csv -q 'customer_name.str.startswith("Kennametal")' -a
+```
+
 #### Noteworthy
 
 Note you typically need to use the -a option to query all rows, because the query
