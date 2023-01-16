@@ -125,15 +125,24 @@ $ csv2sql.py parse my_file.csv
 The above command will only show the first 10 rows of the CSV file.
 To show more rows, you can do it like this:
 
-$ csv2sql.py parse my_file.csv -h 100
+$ csv2sql.py parse my_file.csv -m 100
+
+#### Show all rows
 
 To show all rows, you can do it like this:
 
-$ csv2sql.py parse my_file.csv -h -1
+$ csv2sql.py parse my_file.csv -m -1
 
 or also like this:
 
 $ csv2sql.py parse my_file.csv -a
+
+#### Define the number of lines to skip
+
+To define the number of lines to skip, you can do it like this:
+
+$ csv2sql.py table -t my_file.csv -h 2
+
 
 ### Rename Columns
 
@@ -161,11 +170,11 @@ $ csv2sql.py parse --omit "Tenant Product Type" --omit "Solution Area"
 
 If you want to apply regular expressions to a subset of columns, you can do it like this:
 
-$ csv2sql parse -h 5 bla.csv -c fr_id -c TID=tenant_id -replace tenant_id='s/S_0(.*)/\1/g'
+$ csv2sql parse -m 5 bla.csv -c fr_id -c TID=tenant_id -replace tenant_id='s/S_0(.*)/\1/g'
 
 You can also apply multiple regular expressions to a column:
 
-$ csv2sql parse -h 5 bla.csv -c fr_id -c TID=tenant_id -r tenant_id='s/S_0(.*)/\1/g' -r tenant_id='s/74/99/g'
+$ csv2sql parse -m 5 bla.csv -c fr_id -c TID=tenant_id -r tenant_id='s/S_0(.*)/\1/g' -r tenant_id='s/74/99/g'
 
 Note that regular expressions are applied in the order they are specified, on the
 optionally renamed columns.
@@ -200,11 +209,25 @@ Note that replace statements are applied before the query is applied.
 
 $ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -a
 
+Note that proper quoting is required. For exmaple:
+
+#### Equals Query
+
+$ csv2sql parse tpt_assignments_input.xlsx  -f "#Tenants"=int -f "#Customers"=int -m 1 -n "Tenant Product Type"=tpt -q 'tpt=="A"'
+
 #### Boolean Query
 
 $ csv2sql parse approvers.csv -c contact -c product_id -c product_name -c product_id -q 'contact!=""' -f product_id=int -q 'product_id>800300' -a
 
 Note how we needed to convert the product_id column to an integer.
+
+#### Equals Query for numerical values
+
+$ csv2sql parse tpt_assignments_input.xlsx -n "#Tenants=n_tenants" -q "n_tenants==7243" -f "#Tenants"=int -a 
+
+#### In Query
+
+$ csv2sql parse tpt_assignments_input.xlsx -n "Tenant Product Type"=tpt -q 'tpt.isin(["A","A5"])' -a
 
 #### Here's a very complex query
 
@@ -212,8 +235,12 @@ $ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'conta
 
 #### Noteworthy
 
-Not you typically need to use the -a option to query all rows, because the query
+Note you typically need to use the -a option to query all rows, because the query
 will only work on the rows that are actually shown.
+
+Note also that if you have spaces in your column names, you first need to rename
+the column before using a query on it.
+
 
 ### Sort the output
 
@@ -223,6 +250,11 @@ $ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'conta
 
 You can give any number of ordering options, and they will be applied in the order; 
 if you want to reverse the order, you can prefix the column with a minus sign.
+
+Note that if you have a numeric value, in order to sort it numerically, you need
+to convert it to an integer or float:
+
+$ csv2sql parse tpt_assignments_input.csv -m 12 -f "#Tenants"=int -o -"#Tenants"
 
 
 ### Generate a CSV File
@@ -454,7 +486,7 @@ def table (
             nrows = file_len(file)
             with Progress() as progress: # Create a progress bar
                 task = progress.add_task(f"Parsing {file}", total=nrows)
-                df = read_file(file, sepr, -1)
+                df = read_file(file, sepr, -1, head)
 
                 #
                 # If asked to rename columns, do it
@@ -478,8 +510,8 @@ def table (
                 rows = 0
                 rows_skipped = 0
 
-                if head is not None and head > 0:
-                    rows_skipped = head
+                if max is not None and max > 0:
+                    rows_skipped = max
 
 
                 #
@@ -595,8 +627,8 @@ def table (
                 result += f"  fields terminated by '{sepr}'\n"
                 result += "  optionally enclosed by '\"'\n"
                 result += "  ignore "
-                if head is not None and head > 0:
-                    result += f"{head + 1}"
+                if max is not None and max > 0:
+                    result += f"{max + 1}"
                 else:
                     result += "1"
                 result += " rows;\n"
@@ -622,18 +654,19 @@ def table (
 def parse (
     ctx:        typer.Context,
     sepr:       str  = typer.Option(None,      "--separator", "-s", "--sep", help="The separator to use"),
-    head:       int  = typer.Option(10,        "--head",      "-h",          help="The number of rows to show. -1 for all rows"),
+    head:       int  = typer.Option(0,         "--head",      "-h",          help="The number of header lines to skip"),
+    max:        int  = typer.Option(10,        "--max",       "-m",          help="The number of rows to show. -1 for all rows"),
     all:        bool = typer.Option(False,     "--all",       "-a",          help="Whether to show all rows or not"),
     columns:    List[str] = typer.Option(None, "--columns",   "-c",          help="The columns to show and their alternate names"),
     names:      List[str] = typer.Option(None, "--names",     "-n",          help="If you just want to rename columns, but not select them"),
-    omit:       List[str] = typer.Option(None, "--omit",                     help="The columns to omit"),
+    omit:       List[str] = typer.Option(None, "--omit",      "-O",          help="The columns to omit"),
     query:      List[str] = typer.Option(None, "--query",     "-q",          help="The query to apply to the specified columns"),
     replace:    List[str] = typer.Option(None, "--replace",   "-r",          help="The regular expressions to apply to the specified columns"),
     formats:    List[str] = typer.Option(None, "--formats",   "-f",          help="The formats to use for the specified columns"),
     unique:     List[str] = typer.Option(None, "--unique",    "-u",          help="The columns to unique on"),
     order:      List[str] = typer.Option(None, "--order",     "-o",          help="The sort order to use for the specified columns"),
     ascsv:      bool = typer.Option(False,     "--csv",                      help="Whether to output in CSV format or not"),
-    asexcel:    str  = typer.Option(None,      "--excel", "-xls", "-xlsx",   help="The excel (xlsx) file to write to"),
+    asexcel:    str  = typer.Option(None,      "--excel", "--xls", "--xlsx", help="The excel (xlsx) file to write to"),
     asjson:     bool = typer.Option(False,     "--json",                     help="Whether to output in JSON format or not"),
     aspjson:    bool = typer.Option(False,     "--pjson",                    help="Whether to output in pretty JSON format or not"),
     ashtml:     bool = typer.Option(False,     "--html",                     help="Whether to output in HTML format or not"),
@@ -705,10 +738,11 @@ def parse (
                 #
                 # If we have types, we need to apply them
                 #
+                import math
                 converters = {}
                 converter_dict = {
-                    'int':   lambda x: int(re.sub(r'[^0-9.]', '', x)) if x else None,
-                    'float': lambda x: float(re.sub(r'[^0-9.]', '', x)) if x else None,
+                    'int':   lambda x: int(re.sub(r'[^0-9.]', '', x)) if isinstance(x, str) else x if isinstance(x, int) else pd.NA,
+                    'float': lambda x: float(re.sub(r'[^0-9.]', '', x)) if isinstance(x, str) else x if isinstance(x, float) else pd.NA,
                     'str':   str,
                 }
                 for t in formats:
@@ -739,19 +773,19 @@ def parse (
                 #
                 # Read in the file
                 #
-                if head == -1 or all:
-                    df = read_file(file, sepr, -1, converters)
+                if max == -1 or all:
+                    df = read_file(file, sepr, -1, head, converters)
                 else:
-                    df = read_file(file, sepr, head, converters)
+                    df = read_file(file, sepr, max, head, converters)
 
             #
             # If we don't have types, we can just read the file
             #
             else:
-                if head == -1 or all:
-                    df = read_file(file, sepr, -1)
+                if max == -1 or all:
+                    df = read_file(file, sepr, -1, head)
                 else:
-                    df = read_file(file, sepr, head)
+                    df = read_file(file, sepr, max, head)
 
 
             #
@@ -827,6 +861,11 @@ def parse (
                         sortvalues.append(o)
                         sortorders.append(True)
                 df = df.sort_values(sortvalues, ascending=sortorders)
+
+            #
+            # Replace NaN with ""
+            #
+            df = df.fillna("")
 
             #
             # If asked to output in HTML format, do it
@@ -945,8 +984,8 @@ def parse (
                 #
                 # If asked to output a certain number of lines, but not all, do it
                 #
-                if head > -1 and not all:
-                    for row in df.head(head).itertuples(index=False):
+                if max > -1 and not all:
+                    for row in df.head(max).itertuples(index=False):
                         table.add_row(*[str(i) for i in row])
                 #
                 # Else if asked to output all lines, do it
@@ -978,21 +1017,22 @@ def file_len(file_path):
 #
 # Read a file and output it in a dataframe
 #
-def read_file(filename: str, separator: str = None, rows: int = -1, converters = None ) -> pd.DataFrame:
+def read_file(filename: str, separator: str = None, rows: int = -1, head: int = 0, converters = None ) -> pd.DataFrame:
     global _separator
     file_ext = os.path.splitext(filename)[1]
     if file_ext == '.csv': # If it's a CSV file, use pandas
         if separator: # If we have a separator, use it
             if rows > -1: # If we have a number of rows, use it
                 if converters: # If we have converters, use them
-                    return no_na(pd.read_csv(filename, sep=separator, nrows=rows, converters=converters))
+                    df = pd.read_csv(filename, sep=separator, nrows=rows, skiprows=range(1, head), converters=converters)
+                    return df
                 else: # If we don't have converters, don't use them
-                    return no_na(pd.read_csv(filename, sep=separator, nrows=rows, dtype=str))
+                    return pd.read_csv(filename, sep=separator, nrows=rows, skiprows=range(1, head), dtype=str)
             else: # If we don't have a number of rows, read the whole file
                 if converters: # If we have converters, use them
-                    return no_na(pd.read_csv(filename, sep=separator, converters=converters))
+                    return pd.read_csv(filename, sep=separator, skiprows=range(1, head), converters=converters)
                 else: # If we don't have converters, don't use them
-                    return no_na(pd.read_csv(filename, sep=separator, dtype=str))
+                    return pd.read_csv(filename, sep=separator, skiprows=range(1, head), dtype=str)
         else: # If we don't have a separator, try to auto-detect it
             with open(filename, 'r') as f:
                 dialect = csv.Sniffer().sniff(f.readline()) # Try to auto-detect the separator
@@ -1001,34 +1041,44 @@ def read_file(filename: str, separator: str = None, rows: int = -1, converters =
                     _separator = dialect.delimiter # Set the global separator
                 if rows > -1: # If we have a number of rows, use it
                     if converters: # If we have converters, use them
-                        return no_na(pd.read_csv(filename, sep=dialect.delimiter, nrows=rows, converters=converters))
+                        #pretty_print_converters (converters)
+                        df = pd.read_csv(filename, sep=dialect.delimiter, nrows=rows, skiprows=range(1, head), header=0, converters=converters)
+                        return df
                     else: # If we don't have converters, don't use them
-                        return no_na(pd.read_csv(filename, sep=dialect.delimiter, nrows=rows, dtype=str))
+                        return pd.read_csv(filename, sep=dialect.delimiter, nrows=rows, skiprows=range(1, head), dtype=str)
                 else: # If we don't have a number of rows, read the whole file
                     if converters: # If we have converters, use them
-                        return no_na(pd.read_csv(filename, sep=dialect.delimiter, converters=converters))
+                        return pd.read_csv(filename, sep=dialect.delimiter, skiprows=range(1, head), converters=converters)
                     else: # If we don't have converters, don't use them
-                        return no_na(pd.read_csv(filename, sep=dialect.delimiter, dtype=str))
+                        return pd.read_csv(filename, sep=dialect.delimiter, skiprows=range(1, head), dtype=str)
     elif file_ext in ('.xls', '.xlsx'): # If we have an Excel file, use the Excel reader     
         if _separator is None:
             _separator = "," # Set the global separator
         if rows > -1: # If we have a number of rows, use it
-            return no_na(pd.read_excel(filename, nrows=rows, dtype=str))
+            if converters:
+                #pretty_print_converters (converters)
+                return pd.read_excel(filename, nrows=rows, skiprows=range(1, head), converters=converters)
+            else:
+                return pd.read_excel(filename, nrows=rows, skiprows=range(1, head), dtype=str)
         else: # If we don't have a number of rows, read the whole file
-            return no_na(pd.read_excel(filename, dtype=str))
+            if converters:
+                return pd.read_excel(filename, skiprows=range(1, head), converters=converters)
+            else:
+                return pd.read_excel(filename, skiprows=range(1, head), dtype=str)
     else: # If we have an unsupported file type, raise an error
         raise ValueError(f"Invalid file format: {file_ext}. Only CSV, XLS, and XLSX are supported.")
 
 
 #
-# Remove missing values from a dataframe
+# Helper function to print the source code of a lambda function
 #
-def no_na(df) -> pd.DataFrame:
-    #
-    # Deal with missing values
-    #
-    df = df.fillna("")
-    return df
+def pretty_print_converters(converters):
+    import inspect
+    for key, value in converters.items():
+        if callable(value) and inspect.isfunction(value) and value.__name__ == '<lambda>':
+            print(f"{key}: {inspect.getsource(value)}")
+        else:
+            print(f"{key}: {value}")
 
 
 #

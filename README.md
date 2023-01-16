@@ -155,13 +155,15 @@ The above command will only show the first 10 rows of the CSV file.
 To show more rows, you can do it like this:
 
 ```bash
-$ csv2sql.py parse my_file.csv -h 100
+$ csv2sql.py parse my_file.csv -m 100
 ```
+
+#### Show all rows
 
 To show all rows, you can do it like this:
 
 ```bash
-$ csv2sql.py parse my_file.csv -h -1
+$ csv2sql.py parse my_file.csv -m -1
 ```
 
 or also like this:
@@ -169,6 +171,15 @@ or also like this:
 ```bash
 $ csv2sql.py parse my_file.csv -a
 ```
+
+#### Define the number of lines to skip
+
+To define the number of lines to skip, you can do it like this:
+
+```bash
+$ csv2sql.py table -t my_file.csv -h 2
+```
+
 
 ### Rename Columns
 
@@ -203,13 +214,13 @@ $ csv2sql.py parse --omit "Tenant Product Type" --omit "Solution Area"
 If you want to apply regular expressions to a subset of columns, you can do it like this:
 
 ```bash
-$ csv2sql parse -h 5 bla.csv -c fr_id -c TID=tenant_id -replace tenant_id='s/S_0(.*)/\1/g'
+$ csv2sql parse -m 5 bla.csv -c fr_id -c TID=tenant_id -replace tenant_id='s/S_0(.*)/\1/g'
 ```
 
 You can also apply multiple regular expressions to a column:
 
 ```bash
-$ csv2sql parse -h 5 bla.csv -c fr_id -c TID=tenant_id -r tenant_id='s/S_0(.*)/\1/g' -r tenant_id='s/74/99/g'
+$ csv2sql parse -m 5 bla.csv -c fr_id -c TID=tenant_id -r tenant_id='s/S_0(.*)/\1/g' -r tenant_id='s/74/99/g'
 ```
 
 Note that regular expressions are applied in the order they are specified, on the
@@ -253,6 +264,14 @@ Note that replace statements are applied before the query is applied.
 $ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -a
 ```
 
+Note that proper quoting is required. For exmaple:
+
+#### Equals Query
+
+```bash
+$ csv2sql parse tpt_assignments_input.xlsx  -f "#Tenants"=int -f "#Customers"=int -m 1 -n "Tenant Product Type"=tpt -q 'tpt=="A"'
+```
+
 #### Boolean Query
 
 ```bash
@@ -260,6 +279,18 @@ $ csv2sql parse approvers.csv -c contact -c product_id -c product_name -c produc
 ```
 
 Note how we needed to convert the product_id column to an integer.
+
+#### Equals Query for numerical values
+
+```bash
+$ csv2sql parse tpt_assignments_input.xlsx -n "#Tenants=n_tenants" -q "n_tenants==7243" -f "#Tenants"=int -a
+```
+
+#### In Query
+
+```bash
+$ csv2sql parse tpt_assignments_input.xlsx -n "Tenant Product Type"=tpt -q 'tpt.isin(["A","A5"])' -a
+```
 
 #### Here's a very complex query
 
@@ -269,8 +300,12 @@ $ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'conta
 
 #### Noteworthy
 
-Not you typically need to use the -a option to query all rows, because the query
+Note you typically need to use the -a option to query all rows, because the query
 will only work on the rows that are actually shown.
+
+Note also that if you have spaces in your column names, you first need to rename
+the column before using a query on it.
+
 
 ### Sort the output
 
@@ -282,6 +317,13 @@ $ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'conta
 
 You can give any number of ordering options, and they will be applied in the order;
 if you want to reverse the order, you can prefix the column with a minus sign.
+
+Note that if you have a numeric value, in order to sort it numerically, you need
+to convert it to an integer or float:
+
+```bash
+$ csv2sql parse tpt_assignments_input.csv -m 12 -f "#Tenants"=int -o -"#Tenants"
+```
 
 
 ### Generate a CSV File
