@@ -305,8 +305,8 @@ $ csv2sql.py parse approvers.csv --db -t=approvers2
 You can use a different database by specifying the database connection string and optionally the database type:
 
 ```bash
-$ csv2sql.py parse approvers.csv --db --dbtype=mysql+pymysql --dbconn=user:password@dbhost:3306/mydb
-$ csv2sql.py parse approvers.csv --db --dbtype=postgresql    --dbconn=user:password@dbhost:5432/mydb
+$ csv2sql.py parse approvers.csv --db --dbtype=mysql+pymysql --dbuser=user --dbpass=pass --dbhost=localhost --dbport=3306 --dbschema=mydb
+$ csv2sql.py parse approvers.csv --db --dbtype=postgresql    --dbuser=user --dbpass=pass --dbhost=localhost --dbport=5432 --dbschema=mydb
 ```
 
 #### Use a different chunk size
@@ -322,10 +322,10 @@ This can have a significant impact on the performance of the database.
 
 #### Use special database connection parameters
 
-You can use special database connection parameters by specifying the database connection string and optionally the database type:
+You can use special database connection parameters like so:
 
 ```bash
-$ csv2sql.py parse approvers.csv --db --dbtype=mysql+pymysql --dbconn=user:password@dbhost:3306/mydb?charset=utf8mb4
+$ csv2sql.py parse approvers.csv --db --dbtype=mysql+pymysql --dbspecial=charset=utf8mb4
 ```
 
 You can also use the dbargs option to specify the database connection parameters:

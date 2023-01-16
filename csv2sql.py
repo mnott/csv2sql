@@ -240,8 +240,8 @@ $ csv2sql.py parse approvers.csv --db -t=approvers2
 
 You can use a different database by specifying the database connection string and optionally the database type:
 
-$ csv2sql.py parse approvers.csv --db --dbtype=mysql+pymysql --dbconn=user:password@dbhost:3306/mydb
-$ csv2sql.py parse approvers.csv --db --dbtype=postgresql    --dbconn=user:password@dbhost:5432/mydb
+$ csv2sql.py parse approvers.csv --db --dbtype=mysql+pymysql --dbuser=user --dbpass=pass --dbhost=localhost --dbport=3306 --dbschema=mydb
+$ csv2sql.py parse approvers.csv --db --dbtype=postgresql    --dbuser=user --dbpass=pass --dbhost=localhost --dbport=5432 --dbschema=mydb
 
 #### Use a different chunk size
 
@@ -254,9 +254,9 @@ This can have a significant impact on the performance of the database.
 
 #### Use special database connection parameters
 
-You can use special database connection parameters by specifying the database connection string and optionally the database type:
+You can use special database connection parameters like so:
 
-$ csv2sql.py parse approvers.csv --db --dbtype=mysql+pymysql --dbconn=user:password@dbhost:3306/mydb?charset=utf8mb4
+$ csv2sql.py parse approvers.csv --db --dbtype=mysql+pymysql --dbspecial=charset=utf8mb4
 
 You can also use the dbargs option to specify the database connection parameters:
 
@@ -396,7 +396,12 @@ def parse (
     chunk_size: int  = typer.Option(10000,     "--chunk_size","-cs",         help="The chunksize to use for writing to the database"),
     dbtable:    str  = typer.Option(None,      "--table",     "-t",          help="The database table to write to"),
     prefix:     str  = typer.Option("",        "--prefix",    "-p",          help="The prefix to use for the table name"),
-    dbconn:     str  = typer.Option("tc:sap123@tc:3306/tc",    "--dbconn",   help="The database connection string"),
+    dbhost:     str  = typer.Option("tc",      "--dbhost",    "-dh",         help="The database host to connect to"),
+    dbport:     int  = typer.Option(3306,      "--dbport",    "-dp",         help="The database port to connect to"),
+    dbuser:     str  = typer.Option("tc",      "--dbuser",    "-du",         help="The database user to connect as"),
+    dbpass:     str  = typer.Option("sap123",  "--dbpass",    "-dp",         help="The database password to connect with"),
+    dbschema:   str  = typer.Option("tc",      "--dbschema",  "-ds",         help="The database schema to connect to"),
+    dbspecial:  str  = typer.Option(None,      "--dbspecial", "-dss",        help="The database specials to use for the connection"),
     dbtype:     str  = typer.Option("mysql+pymysql",           "--dbtype",   help="The database type"),
     dbargs:     str  = typer.Option('{"connect_timeout": 10}', "--dbargs",   help="The database connection arguments to use"),
     files:      Optional[List[str]] = typer.Argument(None,                   help="The files to process"),
@@ -606,7 +611,11 @@ def parse (
                     connect_args = json.loads(dbargs)
                 else:
                     connect_args = {}
-                engine=create_engine(f"{dbtype}://{dbconn}", echo=True, connect_args=connect_args)
+                if dbspecial is not None:
+                    dbspecial = f"?{dbspecial}"
+                else:
+                    dbspecial = ""
+                engine=create_engine(f"{dbtype}://{dbuser}:{dbpass}@{dbhost}:{dbport}/{dbschema}{dbspecial}", echo=True, connect_args=connect_args)
                 sql_stmt = sql.get_schema(df, dbtable, con=engine)
                 print(f"{sql_stmt}")
 
@@ -629,7 +638,11 @@ def parse (
                         chunk_size = total_rows // 100
                         if chunk_size == 0 or chunk_size < 100:
                             chunk_size = 100
-                engine=create_engine(f"{dbtype}://{dbconn}", echo=False, connect_args=connect_args) # We create the engine
+                if dbspecial is not None:
+                    dbspecial = f"?{dbspecial}"
+                else:
+                    dbspecial = ""                            
+                engine=create_engine(f"{dbtype}://{dbuser}:{dbpass}@{dbhost}:{dbport}/{dbschema}{dbspecial}", echo=False, connect_args=connect_args) # We create the engine
 
                 #
                 # First drop the table
