@@ -49,8 +49,7 @@ To generate a complete table defintion, you can do it like this:
 $ csv2sql.py table -t my_file.csv
 ```
 
-
-#### Generate a Temporary Table
+### Generate a Temporary Table
 
 To generate a temporary table, you can do it like this:
 
@@ -58,6 +57,89 @@ To generate a temporary table, you can do it like this:
 $ csv2sql.py table -tt my_file.csv
 ```
 
+### Change the Table Name
+
+To change the table name, you can do it like this:
+
+```bash
+$ csv2sql.py table -t my_file.csv=my_table_name
+```
+
+By default, the table name is the name of the CSV file, without the extension.
+
+### Add a Prefix to the Table Name
+
+To add a prefix to the table name, you can do it like this:
+
+```bash
+$ csv2sql.py table -t my_file.csv -p _tmp_
+```
+
+By default, the prefix is empty.
+
+### Overwrite the input directory
+
+To overwrite the input directory, you can do it like this:
+
+```bash
+$ csv2sql.py table -t my_file.csv -d /opt/data/input/import
+```
+
+By default, the input directory is the current directory.
+
+### Define the number of lines to skip
+
+To define the number of lines to skip, you can do it like this:
+
+```bash
+$ csv2sql.py table -t my_file.csv -h 2
+```
+
+### Rename Columns
+
+If you want to just rename some columns, you can do it like this:
+
+```bash
+$ csv2sql.py table -n "Tenant Product Type"=tpt -n "Solution Area"=solution_area
+```
+
+### Format Columns
+
+If you want to format some columns, you can do it like this:
+
+```bash
+$ csv2sql.py table -f "Tenant Product Type"="varchar(?) DEFAULT NULL" -f product_id="int(?) DEFAULT NULL" -f "Solution Area"="varchar(256) DEFAULT NULL"
+```
+
+Note that you can use the ? as a placeholder for the maximum length of the column.
+
+### Specify default DEFAULT values
+
+If you want to specify default DEFAULT values for all columns, you can do it like this:
+
+```bash
+$ csv2sql.py table -D "DEFAULT NULL"
+```
+
+This is going to be added to each column definition unless it was given a format (see above).
+
+### Use indices
+
+If you want to use indices, you can do it like this:
+
+```bash
+$ csv2sql.py table -t my_file.csv -i tpt -i solution_area,product_id
+```
+
+If you use more than one column, an index be composite.
+
+### Use COMPRESSED row format
+
+If you want to use the COMPRESSED row format, you can do it like this:
+
+```bash
+$ csv2sql.py table -t -c my_file.csv
+```
 
 ## Parse a CSV (or Excel) file and optionally write it to a Database
 
@@ -195,8 +277,7 @@ will only work on the rows that are actually shown.
 Here is an even more complex query showing how to sort the output:
 
 ```bash
-$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -f product_id=int -q 'product_id>8003000' -q 'product_id<8004000' -a -q 'product_name contains "Ariba"' -q 'not contact contains "Olaf"' -o
--product_id -o product_name
+$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -f product_id=int -q 'product_id>8003000' -q 'product_id<8004000' -a -q 'product_name contains "Ariba"' -q 'not contact contains "Olaf"' -o -product_id -o product_name
 ```
 
 You can give any number of ordering options, and they will be applied in the order;

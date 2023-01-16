@@ -42,13 +42,77 @@ To generate a complete table defintion, you can do it like this:
 
 $ csv2sql.py table -t my_file.csv
 
-
-#### Generate a Temporary Table
+### Generate a Temporary Table
 
 To generate a temporary table, you can do it like this:
 
 $ csv2sql.py table -tt my_file.csv
 
+### Change the Table Name
+
+To change the table name, you can do it like this:
+
+$ csv2sql.py table -t my_file.csv=my_table_name
+
+By default, the table name is the name of the CSV file, without the extension.
+
+### Add a Prefix to the Table Name
+
+To add a prefix to the table name, you can do it like this:
+
+$ csv2sql.py table -t my_file.csv -p _tmp_
+
+By default, the prefix is empty.
+
+### Overwrite the input directory
+
+To overwrite the input directory, you can do it like this:
+
+$ csv2sql.py table -t my_file.csv -d /opt/data/input/import
+
+By default, the input directory is the current directory.
+
+### Define the number of lines to skip
+
+To define the number of lines to skip, you can do it like this:
+
+$ csv2sql.py table -t my_file.csv -h 2
+
+### Rename Columns
+
+If you want to just rename some columns, you can do it like this:
+
+$ csv2sql.py table -n "Tenant Product Type"=tpt -n "Solution Area"=solution_area
+
+### Format Columns
+
+If you want to format some columns, you can do it like this:
+
+$ csv2sql.py table -f "Tenant Product Type"="varchar(?) DEFAULT NULL" -f product_id="int(?) DEFAULT NULL" -f "Solution Area"="varchar(256) DEFAULT NULL"
+
+Note that you can use the ? as a placeholder for the maximum length of the column.
+
+### Specify default DEFAULT values
+
+If you want to specify default DEFAULT values for all columns, you can do it like this:
+
+$ csv2sql.py table -D "DEFAULT NULL"
+
+This is going to be added to each column definition unless it was given a format (see above).
+
+### Use indices
+
+If you want to use indices, you can do it like this:
+
+$ csv2sql.py table -t my_file.csv -i tpt -i solution_area,product_id
+
+If you use more than one column, an index be composite.
+
+### Use COMPRESSED row format
+
+If you want to use the COMPRESSED row format, you can do it like this:
+
+$ csv2sql.py table -t -c my_file.csv
 
 ## Parse a CSV (or Excel) file and optionally write it to a Database
 
@@ -338,15 +402,18 @@ app = typer.Typer(
 @app.command()
 def table (
     ctx:        typer.Context,
-    sepr:       str  = typer.Option(None,   "--separator", "-s", "--sep",   help="The separator to use"),
-    table:      bool = typer.Option(False,  "--table",     "-t",            help="Whether to create a table or not"),
-    temporary:  bool = typer.Option(False,  "--temptable", "-tt",           help="Whether to create a temporary table or not"),  
-    prefix:     str  = typer.Option("",     "--prefix",    "-p",            help="The prefix to use for the table name"),
-    dir:        str  = typer.Option(None,   "--dir",       "-d",            help="The load directory on the Server"),
-    head:       int  = typer.Option(0,      "--head",      "-h",            help="The number of header lines to skip"),
-    compressed: bool = typer.Option(False,  "--compressed", "-c",           help="Whether to use ROW_FORMAT=COMPRESSED or not"),
-    idx:        Optional[List[str]] = typer.Option(None, "--index", "-i",   help="The index to use for the table"),
-    files:      Optional[List[str]] = typer.Argument(None,                  help="The files to process; optionally use = to specify the table name"),
+    sepr:       str  = typer.Option(None,      "--separator",  "-s", "--sep", help="The separator to use"),
+    table:      bool = typer.Option(False,     "--table",      "-t",          help="Whether to create a table or not"),
+    temporary:  bool = typer.Option(False,     "--temptable",  "-tt",         help="Whether to create a temporary table or not"),  
+    prefix:     str  = typer.Option("",        "--prefix",     "-p",          help="The prefix to use for the table name"),
+    dir:        str  = typer.Option(None,      "--dir",        "-d",          help="The load directory on the Server"),
+    head:       int  = typer.Option(0,         "--head",       "-h",          help="The number of header lines to skip"),
+    names:      List[str] = typer.Option(None, "--names",      "-n",          help="If you want to rename columns"),
+    formats:    List[str] = typer.Option(None, "--formats",    "-f",          help="The formats to use for the specified columns"),
+    default:    str  = typer.Option("DEFAULT NULL",  "--default",    "-D",    help="The default value to use for the specified columns"),
+    compressed: bool = typer.Option(False,     "--compressed", "-c",          help="Whether to use ROW_FORMAT=COMPRESSED or not"),
+    idx:        Optional[List[str]] = typer.Option(None, "--index", "-i",     help="The index to use for the table"),
+    files:      Optional[List[str]] = typer.Argument(None,                    help="The files to process; optionally use = to specify the table name"),
 ) -> None:
     """
     Parse CSV files to generate MySQL tables
@@ -364,7 +431,187 @@ def table (
         sys.exit(1)
     else:
         for file in files: #ctx.args:
-            run(file, sepr, table, temporary, prefix, dir, head, compressed, idx)
+            cols = []
+            hdrs = []
+            maxl = 0
+            sum_field_length = 0
+            result = ""
+            hash_result = ""
+
+            tablename=file
+            if file.find("=") > -1:
+                temp = file.split("=")
+                file = temp[0]
+                tablename = temp[1]
+            else:
+                tablename = Path(file).stem
+                if prefix != "": # If we have a prefix, we add it to the table name
+                    dbtable = f"{prefix}{tablename}"      
+
+
+            abs_path = path.abspath(file)
+
+            nrows = file_len(file)
+            with Progress() as progress: # Create a progress bar
+                task = progress.add_task(f"Parsing {file}", total=nrows)
+                df = read_file(file, sepr, -1)
+
+                #
+                # If asked to rename columns, do it
+                #
+                rename = {}
+                if names:
+                    for col in names:
+                        if col.find("=") == -1:
+                            print("Please specify a column name and its alternate name using =")
+                            sys.exit(1)
+                        else:
+                            temp = col.split("=")
+                            rename[temp[0]] = temp[1]
+                if rename:
+                    df = df.rename(columns=rename)
+
+
+                #
+                # Skip rows
+                #
+                rows = 0
+                rows_skipped = 0
+
+                if head is not None and head > 0:
+                    rows_skipped = head
+
+
+                #
+                # Get the column names and lengths
+                #
+                hdrs = []
+                for hdr in df.columns:
+                    #hdr = hdr.lower()
+                    #hdr = re.sub(r'[^^a-zA-Z0-9,]', '_', hdr)
+                    maxl = len(hdr) if maxl < len(hdr) else maxl
+                    hdrs.append(hdr)
+
+                #
+                # Iterate through the rows
+                #
+                for index, row in df.iterrows():
+                    progress.update(task, advance=1)
+                    rows += 1
+                    if rows_skipped > 0:
+                        rows_skipped -= 1
+                        continue
+                    col = 0
+                    for item in row:
+                        if col >= len(cols):
+                            cols.append(len(item))
+                        else:
+                            cols[col] = len(item) if cols[col] < len(item) else cols[col]
+                        col += 1
+
+            #
+            # Create the table header
+            #
+            if temporary:
+                table = True
+                temporary = "TEMPORARY "
+            else:
+                temporary = ""
+
+            if table:
+                tablename = tablename.lower()
+                result += f"DROP {temporary}TABLE IF EXISTS `{prefix}{tablename}`;\n"
+                result += f"CREATE {temporary}TABLE `{prefix}{tablename}` (\n"
+
+
+            #
+            # If asked to format columns, do it
+            #
+            hdr_formats = {}
+            if formats:
+                for col in formats:
+                    if col.find("=") == -1:
+                        print("Please specify a column name and its format using =")
+                        sys.exit(1)
+                    else:
+                        temp = col.split("=")
+                        if temp[0] in hdrs:
+                            hdr_formats[temp[0]] = temp[1]
+
+
+            #
+            # Create the table content
+            #
+            maxl += 4  # Add some space
+            for i, hdr in enumerate(hdrs):
+                hdr_str = f"`{hdr}`".ljust(maxl)
+                sum_field_length += cols[i]
+                add_line = ""
+                if table:
+                    add_line += f"  {hdr_str} "# varchar({cols[i]})"
+                    if hdr in hdr_formats:
+                        add_line += hdr_formats[hdr].replace("?","%s" % cols[i])
+                    else:
+                        add_line += "varchar(%s)" % cols[i]
+                        if default is not None and default != "":
+                            add_line += f" {default}"
+                    add_line += "," if i < len(hdrs)-1 or len(idx) >= 0 else ""
+                    add_line += "\n"
+                else:
+                    add_line += f"{i+1:2} {hdr_str} : {cols[i]:3}\n"
+                result += add_line
+                hash_result += add_line
+
+
+            #
+            # Create the hash
+            #
+            hash_str = hashlib.md5(hash_result.encode()).hexdigest()[:4]
+            hash_int = struct.unpack('<L', hash_str.encode())[0]
+            hash_str = f"{hash_int:,}"
+
+
+            #
+            # Create the table footer
+            #
+            if table:
+                if(len(idx) > 0):
+                    for i, idx_col in enumerate(idx):
+                        result += f"  index({idx_col})"
+                        result += "," if i < len(idx)-1 else ""
+                        result += "\n"
+                result += ") ENGINE=InnoDB DEFAULT CHARSET=utf8"
+
+                if compressed and temporary == "":
+                    result += f" ROW_FORMAT=COMPRESSED"
+
+                result += ";\n\n"
+
+                file = path.basename(file)
+                if dir is not None:
+                    result += f"load data infile '{dir}/{file}' into table `{prefix}{tablename}`\n"
+                else:
+                    result += f"load data infile '{abs_path}' into table `{prefix}{tablename}`\n"
+                result += f"  fields terminated by '{sepr}'\n"
+                result += "  optionally enclosed by '\"'\n"
+                result += "  ignore "
+                if head is not None and head > 0:
+                    result += f"{head + 1}"
+                else:
+                    result += "1"
+                result += " rows;\n"
+
+            #
+            # Add the total field length and the hash to the result
+            #
+            formatted_rows = "{:,}".format(rows)
+            formatted_length = "{:,}".format(sum_field_length)
+            result += f"\n-- Rows: {formatted_rows}. Sum of Field Lengths: {formatted_length}. Hash: {hash_str}.\n"
+
+            #
+            # Return the result
+            #
+            print(result)            
     
 
 #
@@ -782,149 +1029,6 @@ def no_na(df) -> pd.DataFrame:
     #
     df = df.fillna("")
     return df
-
-
-#
-# Process a file
-#
-def run(file, sepr, table, temporary, prefix, dir, head, compressed, idx): 
-    cols = []
-    hdrs = []
-    maxl = 0
-    sum_field_length = 0
-    result = ""
-    hash_result = ""
-
-    tablename=file
-    if file.find("=") > -1:
-        temp = file.split("=")
-        file = temp[0]
-        tablename = temp[1]
-
-    abs_path = path.abspath(file)
-
-    nrows = file_len(file)
-    with Progress() as progress: # Create a progress bar
-        task = progress.add_task(f"Parsing {file}", total=nrows)
-        df = read_file(file, sepr, -1)
-
-        rows = 0
-        rows_skipped = 0
-
-        if head is not None and head > 0:
-            rows_skipped = head
-
-        #
-        # Get the column names and lengths
-        #
-        hdrs = []
-        for hdr in df.columns:
-            hdr = hdr.lower()
-            hdr = re.sub(r'[^^a-zA-Z0-9,]', '_', hdr)
-            maxl = len(hdr) if maxl < len(hdr) else maxl
-            hdrs.append(hdr)
-
-        #
-        # Iterate through the rows
-        #
-        for index, row in df.iterrows():
-            progress.update(task, advance=1)
-            rows += 1
-            if rows_skipped > 0:
-                rows_skipped -= 1
-                continue
-            col = 0
-            for item in row:
-                if col >= len(cols):
-                    cols.append(len(item))
-                else:
-                    cols[col] = len(item) if cols[col] < len(item) else cols[col]
-                col += 1
-
-    #
-    # Create the table header
-    #
-    if temporary:
-        table = True
-        temporary = "TEMPORARY "
-    else:
-        temporary = ""
-
-    if table:
-        if tablename.endswith('.csv'):
-            tablename = path.splitext(tablename)[0]
-        tablename = tablename.lower()
-        result += f"DROP {temporary}TABLE IF EXISTS `{prefix}{tablename}`;\n"
-        result += f"CREATE {temporary}TABLE `{prefix}{tablename}` (\n"
-
-
-    #
-    # Create the table content
-    #
-    maxl += 4  # Add some space
-    for i, hdr in enumerate(hdrs):
-        hdr = f"`{hdr}`".ljust(maxl)
-        sum_field_length += cols[i]
-        add_line = ""
-        if table:
-            add_line += f"  {hdr} varchar({cols[i]})"
-            add_line += "," if i < len(hdrs)-1 or len(idx) >= 0 else ""
-            add_line += "\n"
-        else:
-            add_line += f"{i+1:2} {hdr} : {cols[i]:3}\n"
-        result += add_line
-        hash_result += add_line
-
-
-    #
-    # Create the hash
-    #
-    hash_str = hashlib.md5(hash_result.encode()).hexdigest()[:4]
-    hash_int = struct.unpack('<L', hash_str.encode())[0]
-    hash_str = f"{hash_int:,}"
-
-
-    #
-    # Create the table footer
-    #
-    if table:
-        if(len(idx) > 0):
-            for i, idx_col in enumerate(idx):
-                result += f"  index({idx_col})"
-                result += "," if i < len(idx)-1 else ""
-                result += "\n"
-        result += ") ENGINE=InnoDB DEFAULT CHARSET=utf8"
-
-        if compressed and temporary == "":
-            result += f" ROW_FORMAT=COMPRESSED"
-
-        result += ";\n\n"
-
-        file = path.basename(file)
-        if dir is not None:
-            result += f"load data infile '{dir}/{file}' into table `{prefix}{tablename}`\n"
-        else:
-            result += f"load data infile '{abs_path}' into table `{prefix}{tablename}`\n"
-        result += f"  fields terminated by '{sepr}'\n"
-        result += "  optionally enclosed by '\"'\n"
-        result += "  ignore "
-        if head is not None and head > 0:
-            result += f"{head + 1}"
-        else:
-            result += "1"
-        result += " rows;\n"
-
-    #
-    # Add the total field length and the hash to the result
-    #
-    formatted_rows = "{:,}".format(rows)
-    formatted_length = "{:,}".format(sum_field_length)
-    result += f"\n-- Rows: {formatted_rows}. Sum of Field Lengths: {formatted_length}. Hash: {hash_str}.\n"
-
-    #
-    # Return the result
-    #
-    print(result)
 
 
 #
