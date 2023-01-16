@@ -263,6 +263,9 @@ to convert it to an integer or float:
 
 $ csv2sql parse tpt_assignments_input.csv -m 12 -f "#Tenants"=int -o -"#Tenants"
 
+Here is how you can sort in a case sensitive manner:
+
+csv2sql parse sold_to_party.csv -f customer_name=str -q 'customer_name contains "GmbH"' -o -customer_id --case -a
 
 ### Generate a CSV File
 
@@ -672,6 +675,7 @@ def parse (
     formats:    List[str] = typer.Option(None, "--formats",   "-f",          help="The formats to use for the specified columns"),
     unique:     List[str] = typer.Option(None, "--unique",    "-u",          help="The columns to unique on"),
     order:      List[str] = typer.Option(None, "--order",     "-o",          help="The sort order to use for the specified columns"),
+    case_sens:  bool = typer.Option(False,     "--case",                     help="Whether to use case-sensitive sorting or not"),
     ascsv:      bool = typer.Option(False,     "--csv",                      help="Whether to output in CSV format or not"),
     asexcel:    str  = typer.Option(None,      "--excel", "--xls", "--xlsx", help="The excel (xlsx) file to write to"),
     asjson:     bool = typer.Option(False,     "--json",                     help="Whether to output in JSON format or not"),
@@ -867,7 +871,10 @@ def parse (
                     else:
                         sortvalues.append(o)
                         sortorders.append(True)
-                df = df.sort_values(sortvalues, ascending=sortorders)
+                if case_sens:
+                    df = df.sort_values(sortvalues, ascending=sortorders, kind='quicksort', na_position='last')
+                else:
+                    df = df.sort_values(sortvalues, ascending=sortorders, kind='quicksort', na_position='last', key=lambda x: x.str.lower())
 
             #
             # Replace NaN with ""

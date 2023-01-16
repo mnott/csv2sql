@@ -336,6 +336,9 @@ to convert it to an integer or float:
 $ csv2sql parse tpt_assignments_input.csv -m 12 -f "#Tenants"=int -o -"#Tenants"
 ```
 
+Here is how you can sort in a case sensitive manner:
+
+csv2sql parse sold_to_party.csv -f customer_name=str -q 'customer_name contains "GmbH"' -o -customer_id --case -a
 
 ### Generate a CSV File
 
