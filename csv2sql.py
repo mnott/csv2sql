@@ -243,6 +243,15 @@ You can use a different database by specifying the database connection string an
 $ csv2sql.py parse approvers.csv --db --dbtype=mysql+pymysql --dbconn=user:password@dbhost:3306/mydb
 $ csv2sql.py parse approvers.csv --db --dbtype=postgresql    --dbconn=user:password@dbhost:5432/mydb
 
+#### Use a different chunk size
+
+You can use a different chunk size by specifying the chunk size:
+
+$ csv2sql.py parse approvers.csv --db -cs=10000
+
+This can have a significant impact on the performance of the database.
+
+
 #### Use special database connection parameters
 
 You can use special database connection parameters by specifying the database connection string and optionally the database type:
@@ -364,6 +373,7 @@ def parse (
     asmd:       bool = typer.Option(False,     "--md",                       help="Whether to output in Markdown format or not"),
     assql:      bool = typer.Option(False,     "--sql",                      help="Whether to output in SQL format or not"),
     db:         bool = typer.Option(False,     "--db",        "-db",         help="Whether to write to the database or not"),
+    chunk_size: int  = typer.Option(10000,     "--chunk_size","-cs",         help="The chunksize to use for writing to the database"),
     dbtable:    str  = typer.Option(None,      "--table",     "-t",          help="The database table to write to"),
     prefix:     str  = typer.Option("",        "--prefix",    "-p",          help="The prefix to use for the table name"),
     dbconn:     str  = typer.Option("tc:sap123@tc:3306/tc",    "--dbconn",   help="The database connection string"),
@@ -591,11 +601,12 @@ def parse (
                     connect_args = {}
                 engine=create_engine(f"{dbtype}://{dbconn}", echo=False, connect_args=connect_args) # We create the engine
                 total_rows = len(df)
-                chunk_size = total_rows//1000 # Calculate the chunk size
-                if chunk_size == 0:
-                    chunk_size = total_rows // 100
-                    if chunk_size == 0 or chunk_size < 100:
-                        chunk_size = 100
+                if chunk_size > total_rows:
+                    chunk_size = total_rows//1000 # Calculate the chunk size
+                    if chunk_size == 0:
+                        chunk_size = total_rows // 100
+                        if chunk_size == 0 or chunk_size < 100:
+                            chunk_size = 100
                 with Progress() as progress:
                     task = progress.add_task(f"Writing {total_rows} in chunks of {chunk_size} to {dbtable}", total=total_rows)
                     for i, chunk in enumerate(np.array_split(df, total_rows // chunk_size + 1)):
