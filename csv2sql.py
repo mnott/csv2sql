@@ -245,6 +245,9 @@ will only work on the rows that are actually shown.
 Note also that if you have spaces in your column names, you first need to rename
 the column before using a query on it.
 
+Note also that for string functions, you may want to explicitly convert the column to str first:
+
+$ csv2sql parse sold_to_party.csv -q 'customer_name.str.startswith("Kennametal")' -f customer_name=str -a
 
 ### Sort the output
 
