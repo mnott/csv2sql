@@ -720,10 +720,18 @@ def parse (
 # Count the number of lines in a file
 #
 def file_len(file_path):
-    with open(file_path, "r") as f:
-        for i, l in enumerate(f):
-            pass
-    return i + 1
+    file_ext = os.path.splitext(file_path)[1]
+    if file_ext == '.csv': # If it's a CSV file, treat as text file
+        with open(file_path, "r") as f:
+            for i, l in enumerate(f):
+                pass
+        return i + 1
+    elif file_ext in ('.xls', '.xlsx'): # If we have an Excel file, use the Excel reader 
+        with pd.ExcelFile(file_path) as xlsx:
+            nrows = pd.read_excel(xlsx, usecols=None, nrows=1).shape[0]    
+            return nrows
+    else: # If we have an unsupported file type, raise an error
+        raise ValueError(f"Invalid file format: {file_ext}. Only CSV, XLS, and XLSX are supported.")
 
 
 #
