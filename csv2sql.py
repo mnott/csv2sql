@@ -502,16 +502,10 @@ def parse (
             #
             else:
                 if head == -1 or all:
-                    # df = pd.read_csv(file, sep=sepr, dtype=str)
                     df = read_file(file, sepr, -1)
                 else:
-                    # df = pd.read_csv(file, sep=sepr, nrows=head, dtype=str)
                     df = read_file(file, sepr, head)
 
-            #
-            # Deal with missing values
-            #
-            df = df.fillna("")
 
             #
             # If asked to rename columns, do it
@@ -728,7 +722,7 @@ def file_len(file_path):
         return i + 1
     elif file_ext in ('.xls', '.xlsx'): # If we have an Excel file, use the Excel reader 
         with pd.ExcelFile(file_path) as xlsx:
-            nrows = pd.read_excel(xlsx, usecols=None, nrows=1).shape[0]    
+            nrows = pd.read_excel(xlsx, usecols=None, nrows=1, dtype=str).shape[0]    
             return nrows
     else: # If we have an unsupported file type, raise an error
         raise ValueError(f"Invalid file format: {file_ext}. Only CSV, XLS, and XLSX are supported.")
@@ -744,14 +738,14 @@ def read_file(filename: str, separator: str = None, rows: int = -1, converters =
         if separator: # If we have a separator, use it
             if rows > -1: # If we have a number of rows, use it
                 if converters: # If we have converters, use them
-                    return pd.read_csv(filename, sep=separator, nrows=rows, converters=converters)
+                    return no_na(pd.read_csv(filename, sep=separator, nrows=rows, converters=converters))
                 else: # If we don't have converters, don't use them
-                    return pd.read_csv(filename, sep=separator, nrows=rows, dtype=str)
+                    return no_na(pd.read_csv(filename, sep=separator, nrows=rows, dtype=str))
             else: # If we don't have a number of rows, read the whole file
                 if converters: # If we have converters, use them
-                    return pd.read_csv(filename, sep=separator, converters=converters)
+                    return no_na(pd.read_csv(filename, sep=separator, converters=converters))
                 else: # If we don't have converters, don't use them
-                    return pd.read_csv(filename, sep=separator, dtype=str)
+                    return no_na(pd.read_csv(filename, sep=separator, dtype=str))
         else: # If we don't have a separator, try to auto-detect it
             with open(filename, 'r') as f:
                 dialect = csv.Sniffer().sniff(f.readline()) # Try to auto-detect the separator
@@ -760,18 +754,34 @@ def read_file(filename: str, separator: str = None, rows: int = -1, converters =
                     _separator = dialect.delimiter # Set the global separator
                 if rows > -1: # If we have a number of rows, use it
                     if converters: # If we have converters, use them
-                        return pd.read_csv(filename, sep=dialect.delimiter, nrows=rows, converters=converters)
+                        return no_na(pd.read_csv(filename, sep=dialect.delimiter, nrows=rows, converters=converters))
                     else: # If we don't have converters, don't use them
-                        return pd.read_csv(filename, sep=dialect.delimiter, nrows=rows, dtype=str)
+                        return no_na(pd.read_csv(filename, sep=dialect.delimiter, nrows=rows, dtype=str))
                 else: # If we don't have a number of rows, read the whole file
                     if converters: # If we have converters, use them
-                        return pd.read_csv(filename, sep=dialect.delimiter, converters=converters)
+                        return no_na(pd.read_csv(filename, sep=dialect.delimiter, converters=converters))
                     else: # If we don't have converters, don't use them
-                        return pd.read_csv(filename, sep=dialect.delimiter, dtype=str)
+                        return no_na(pd.read_csv(filename, sep=dialect.delimiter, dtype=str))
     elif file_ext in ('.xls', '.xlsx'): # If we have an Excel file, use the Excel reader     
-        return pd.read_excel(filename)
+        if _separator is None:
+            _separator = "," # Set the global separator
+        if rows > -1: # If we have a number of rows, use it
+            return no_na(pd.read_excel(filename, nrows=rows, dtype=str))
+        else: # If we don't have a number of rows, read the whole file
+            return no_na(pd.read_excel(filename, dtype=str))
     else: # If we have an unsupported file type, raise an error
         raise ValueError(f"Invalid file format: {file_ext}. Only CSV, XLS, and XLSX are supported.")
+
+
+#
+# Remove missing values from a dataframe
+#
+def no_na(df) -> pd.DataFrame:
+    #
+    # Deal with missing values
+    #
+    df = df.fillna("")
+    return df
 
 
 #
@@ -809,7 +819,7 @@ def run(file, sepr, table, temporary, prefix, dir, head, compressed, idx):
         #
         hdrs = []
         for hdr in df.columns:
-            hdr = f"{hdr}".lower()
+            hdr = hdr.lower()
             hdr = re.sub(r'[^^a-zA-Z0-9,]', '_', hdr)
             maxl = len(hdr) if maxl < len(hdr) else maxl
             hdrs.append(hdr)
@@ -826,9 +836,9 @@ def run(file, sepr, table, temporary, prefix, dir, head, compressed, idx):
             col = 0
             for item in row:
                 if col >= len(cols):
-                    cols.append(len(f"{item}"))
+                    cols.append(len(item))
                 else:
-                    cols[col] = len(f"{item}") if cols[col] < len(f"{item}") else cols[col]
+                    cols[col] = len(item) if cols[col] < len(item) else cols[col]
                 col += 1
 
     #
