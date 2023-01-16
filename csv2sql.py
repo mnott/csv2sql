@@ -1087,7 +1087,6 @@ def parse (
 @app.command()
 def drop (
     ctx:        typer.Context,
-    sepr:       str  = typer.Option(None,      "--separator", "-s", "--sep", help="The separator to use"),
     dbtable:    str  = typer.Option(None,      "--table",     "-t",          help="The database table to write to"),
     prefix:     str  = typer.Option("",        "--prefix",    "-p",          help="The prefix to use for the table name"),
     dbhost:     str  = typer.Option("tc",      "--dbhost",    "-dh",         help="The database host to connect to"),
