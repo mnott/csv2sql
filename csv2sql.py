@@ -299,6 +299,18 @@ traceback.install()
 
 
 #
+# Global Variables
+#
+# The separator to use is held in a global variable
+# because it is determined by the read_file function;
+# that function returns a dataframe, but needs to
+# save the separator for the write_file function that
+# is called later by parse.
+#
+_separator = None
+
+
+#
 # Command Line Interface
 #
 from typing import List, Optional
@@ -339,6 +351,14 @@ def table (
     """
     Parse CSV files to generate MySQL tables
     """
+
+    #
+    # Set the global separator
+    #
+    global _separator
+    if sepr is not None:
+        _separator = sepr
+
     if len(files) == 0: # len(ctx.args) == 0:
         print("Please specify a file name.")
         sys.exit(1)
@@ -384,6 +404,14 @@ def parse (
     """
     Parse CSV files to generate MySQL tables
     """
+
+    #
+    # Set the global separator
+    #
+    global _separator
+    if sepr is not None:
+        _separator = sepr
+
     if len(files) == 0: # len(ctx.args) == 0:
         print("Please specify a file name.")
         sys.exit(1)
@@ -539,7 +567,6 @@ def parse (
             if unique:
                 df = df.drop_duplicates(unique)
 
-
             #
             # If asked to sort, do it
             #
@@ -555,7 +582,6 @@ def parse (
                         sortorders.append(True)
                 df = df.sort_values(sortvalues, ascending=sortorders)
 
-
             #
             # If asked to output in HTML format, do it
             #
@@ -567,7 +593,6 @@ def parse (
             #
             elif asmd:
                 print(df.to_markdown(index=False))
-
 
             #
             # If asked to output in SQL format, do it
@@ -584,7 +609,6 @@ def parse (
                 engine=create_engine(f"{dbtype}://{dbconn}", echo=True, connect_args=connect_args)
                 sql_stmt = sql.get_schema(df, dbtable, con=engine)
                 print(f"{sql_stmt}")
-
 
             #
             # If asked to write to DB, do it
@@ -625,9 +649,7 @@ def parse (
                         connection = engine.raw_connection()
                         connection.commit()     
                 print(f"Done writing [magenta]{total_rows}[/magenta] rows to [green]{dbtable}[/green].")
-                
-
-
+               
             #
             # If asked to output in JSON format, do it
             #
@@ -651,7 +673,13 @@ def parse (
             # Otherwise, output in table format
             #
             elif ascsv:
+                if sepr is None:
+                    sepr = _separator
                 df.to_csv(sys.stdout, sep=sepr, index=False, quoting=csv.QUOTE_NONNUMERIC, quotechar='"',escapechar='\\')
+            
+            #
+            # If all else fails, output table
+            #
             else:
                 table = rich.table.Table(show_header=True, header_style="bold magenta")
                 for col in df.columns:
@@ -685,6 +713,7 @@ def file_len(file_path):
 # Read a file and output it in a dataframe
 #
 def read_file(filename: str, separator: str = None, rows: int = -1, converters = None ) -> pd.DataFrame:
+    global _separator
     file_ext = os.path.splitext(filename)[1]
     if file_ext == '.csv': # If it's a CSV file, use pandas
         if separator: # If we have a separator, use it
@@ -702,6 +731,8 @@ def read_file(filename: str, separator: str = None, rows: int = -1, converters =
             with open(filename, 'r') as f:
                 dialect = csv.Sniffer().sniff(f.readline()) # Try to auto-detect the separator
                 f.seek(0) # Go back to the beginning of the file
+                if _separator is None:
+                    _separator = dialect.delimiter # Set the global separator
                 if rows > -1: # If we have a number of rows, use it
                     if converters: # If we have converters, use them
                         return pd.read_csv(filename, sep=dialect.delimiter, nrows=rows, converters=converters)
