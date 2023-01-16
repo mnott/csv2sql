@@ -907,7 +907,7 @@ def parse (
                 if case_sens:
                     df = df.sort_values(sortvalues, ascending=sortorders, kind='quicksort', na_position='last')
                 else:
-                    df = df.sort_values(sortvalues, ascending=sortorders, kind='quicksort', na_position='last', key=lambda x: x.str.lower())
+                    df = df.sort_values(sortvalues, ascending=sortorders, kind='quicksort', na_position='last', key=lambda x: x.str.lower() if isinstance(x, str) else x )
 
             #
             # Replace NaN with ""
