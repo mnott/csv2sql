@@ -182,8 +182,7 @@ Note how we needed to convert the product_id column to an integer.
 #### Here's a very complex query
 
 ```bash
-$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -f product_id=int -q 'product_id>8003000' -q 'product_id<8004000' -q 'product_name contains "Ariba"' -q 'not contact 
-contains "Olaf"' -a
+$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -f product_id=int -q 'product_id>8003000' -q 'product_id<8004000' -q 'product_name contains "Ariba"' -q 'not contact contains "Olaf"' -a
 ```
 
 #### Noteworthy
@@ -196,8 +195,8 @@ will only work on the rows that are actually shown.
 Here is an even more complex query showing how to sort the output:
 
 ```bash
-$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -f product_id=int -q 'product_id>8003000' -q 'product_id<8004000' -a -q 'product_name contains "Ariba"' -q 'not contact 
-contains "Olaf"' -o -product_id -o product_name
+$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -f product_id=int -q 'product_id>8003000' -q 'product_id<8004000' -a -q 'product_name contains "Ariba"' -q 'not contact contains "Olaf"' -o
+-product_id -o product_name
 ```
 
 You can give any number of ordering options, and they will be applied in the order;
@@ -309,6 +308,17 @@ You can use a different database by specifying the database connection string an
 $ csv2sql.py parse approvers.csv --db --dbtype=mysql+pymysql --dbconn=user:password@dbhost:3306/mydb
 $ csv2sql.py parse approvers.csv --db --dbtype=postgresql    --dbconn=user:password@dbhost:5432/mydb
 ```
+
+#### Use a different chunk size
+
+You can use a different chunk size by specifying the chunk size:
+
+```bash
+$ csv2sql.py parse approvers.csv --db -cs=10000
+```
+
+This can have a significant impact on the performance of the database.
+
 
 #### Use special database connection parameters
 

@@ -277,7 +277,7 @@ import struct
 import pandas as pd
 import numpy as np
 from pandas.io import sql
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, MetaData, Table
 import json
 import os
 from os import path
@@ -354,7 +354,7 @@ def table (
 @app.command()
 def parse (
     ctx:        typer.Context,
-    sepr:       str  = typer.Option(",",       "--separator", "-s", "--sep", help="The separator to use"),
+    sepr:       str  = typer.Option(None,      "--separator", "-s", "--sep", help="The separator to use"),
     head:       int  = typer.Option(10,        "--head",      "-h",          help="The number of rows to show. -1 for all rows"),
     all:        bool = typer.Option(False,     "--all",       "-a",          help="Whether to show all rows or not"),
     columns:    List[str] = typer.Option(None, "--columns",   "-c",          help="The columns to show and their alternate names"),
@@ -500,7 +500,6 @@ def parse (
                     if col in df.columns:
                         df = df.drop(col, axis=1)
 
-
             #
             # If asked to do regexes, do them
             #
@@ -599,7 +598,6 @@ def parse (
                     connect_args = json.loads(dbargs)
                 else:
                     connect_args = {}
-                engine=create_engine(f"{dbtype}://{dbconn}", echo=False, connect_args=connect_args) # We create the engine
                 total_rows = len(df)
                 if chunk_size > total_rows:
                     chunk_size = total_rows//1000 # Calculate the chunk size
@@ -607,11 +605,25 @@ def parse (
                         chunk_size = total_rows // 100
                         if chunk_size == 0 or chunk_size < 100:
                             chunk_size = 100
+                engine=create_engine(f"{dbtype}://{dbconn}", echo=False, connect_args=connect_args) # We create the engine
+
+                #
+                # First drop the table
+                #
+                meta = MetaData() # We create the metadata
+                table = Table(dbtable, meta, autoload_with=engine) # We load the table
+                table.drop(bind=engine, checkfirst=True) # We drop the table
+
+                #
+                # Insert the data
+                #
                 with Progress() as progress:
                     task = progress.add_task(f"Writing {total_rows} in chunks of {chunk_size} to {dbtable}", total=total_rows)
                     for i, chunk in enumerate(np.array_split(df, total_rows // chunk_size + 1)):
-                        chunk.to_sql(dbtable, engine, if_exists='replace', index=False)
-                        progress.update(task, advance=chunk_size)                
+                        chunk.to_sql(dbtable, engine, if_exists='append', index=False)
+                        progress.update(task, advance=chunk_size)           
+                        connection = engine.raw_connection()
+                        connection.commit()     
                 print(f"Done writing [magenta]{total_rows}[/magenta] rows to [green]{dbtable}[/green].")
                 
 
@@ -726,9 +738,9 @@ def run(file, sepr, table, temporary, prefix, dir, head, compressed, idx):
     abs_path = path.abspath(file)
 
     nrows = file_len(file)
-    with Progress() as progress:
+    with Progress() as progress: # Create a progress bar
         task = progress.add_task(f"Parsing {file}", total=nrows)
-        csv_reader = csv.reader(open(file, 'r', encoding='utf8'), delimiter=sepr, quotechar='\"')
+        df = read_file(file, sepr, -1)
 
         rows = 0
         rows_skipped = 0
@@ -739,27 +751,29 @@ def run(file, sepr, table, temporary, prefix, dir, head, compressed, idx):
         #
         # Get the column names and lengths
         #
-        for row in csv_reader:
+        hdrs = []
+        for hdr in df.columns:
+            hdr = f"{hdr}".lower()
+            hdr = re.sub(r'[^^a-zA-Z0-9,]', '_', hdr)
+            maxl = len(hdr) if maxl < len(hdr) else maxl
+            hdrs.append(hdr)
+
+        #
+        # Iterate through the rows
+        #
+        for index, row in df.iterrows():
             progress.update(task, advance=1)
             rows += 1
             if rows_skipped > 0:
                 rows_skipped -= 1
                 continue
-            if rows == 1:
-                hdrs = row
-                for hdr in hdrs:
-                    hdr = hdr.lower()
-                    hdr = re.sub(r'[^^a-zA-Z0-9,]', '_', hdr)
-                    maxl = len(hdr) if maxl < len(hdr) else maxl
-                continue
-            else:
-                col = 0
-                for item in row:
-                    if col >= len(cols):
-                        cols.append(len(item))
-                    else:
-                        cols[col] = len(item) if cols[col] < len(item) else cols[col]
-                    col += 1
+            col = 0
+            for item in row:
+                if col >= len(cols):
+                    cols.append(len(f"{item}"))
+                else:
+                    cols[col] = len(f"{item}") if cols[col] < len(f"{item}") else cols[col]
+                col += 1
 
     #
     # Create the table header
