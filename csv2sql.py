@@ -6,44 +6,55 @@ Parse a CSV file and generate a table for a MySQL Database.
 
 # Overview
 
-This script parses a CSV file and generates a table for a MySQL Database.
-This is useful if you want to load a CSV file into a MySQL Database.
+This script parses a CSV (or Excel) file and generates a table for a MySQL Database.
+It can directly write to the database, and it can also generate a table definition.
+
+This is useful if you want to load a CSV (or Excel) file into a MySQL Database.
 To do so, it will parse the CSV file and generate a table definition.
 For each field, it will determine the maximum length of the field.
 
 
 # Usage
 
-Call the script with the -help as argument
-to get the help function:
+## General Help
+
+Call the script with the -help as argument to get the help function:
 
 $ csv2sql.py --help
 
-# Example
+## Help about a command:
 
-If you want to just parse the field
-lengths of a CSV file, you can do it like this:
+To get the help about a command, call the script with the command and the --help option:
+
+$ csv2sql.py table --help
+
+## Show the Table Definition of a file
+
+### Show just the field lenghts
+
+If you want to just parse the field lengths of a CSV file, you can do it like this:
 
 $ csv2sql.py table my_file.csv
 
+### Generate a Table Definition
 
-# Generate a Table
-
-To generate a complete table, you can do it like this:
+To generate a complete table defintion, you can do it like this:
 
 $ csv2sql.py table -t my_file.csv
 
 
-# Generate a Temporary Table
+#### Generate a Temporary Table
 
 To generate a temporary table, you can do it like this:
 
 $ csv2sql.py table -tt my_file.csv
 
 
-# Show the Content of a CSV File
+## Parse a CSV (or Excel) file and optionally write it to a Database
 
-To show the content of a CSV file, you can do it like this.
+### Show the Content of a CSV (or Excel) File
+
+To show the content of a file, you can do it like this:
 
 $ csv2sql.py parse my_file.csv
 
@@ -56,18 +67,17 @@ To show all rows, you can do it like this:
 
 $ csv2sql.py parse my_file.csv -h -1
 
-or alls like this:
+or also like this:
 
 $ csv2sql.py parse my_file.csv -a
 
-# Rename Columns
+### Rename Columns
 
 If you want to just rename some columns, but output all columns, you can do it like this:
 
 $ csv2sql.py parse -n "Tenant Product Type"=tpt -n "Solution Area"=solution_area 
 
-
-# Show, Rename, and Rearrange a Subset of Columns
+### Show, Rename, and Rearrange a Subset of Columns
 
 If you want to rearrange, and rename columns, and also only show a subset of 
 the columns, you can do it like this:
@@ -77,15 +87,13 @@ $ csv2sql.py parse -c "Tenant Product Type"=tpt -c "Solution Area"=solution_area
 Note that if you did use the -n option, you can also use the -c option to
 then further rearrange the columns.
 
-
-# Omit Columns
+### Omit Columns
 
 If you want to omit some columns, you can do it like this:
 
-$ csv2sql.py parse -o "Tenant Product Type" -o "Solution Area"
+$ csv2sql.py parse --omit "Tenant Product Type" --omit "Solution Area"
 
-
-# Apply Regular Expressions to a Subset of Columns
+### Apply Regular Expressions to a Subset of Columns
 
 If you want to apply regular expressions to a subset of columns, you can do it like this:
 
@@ -98,29 +106,152 @@ $ csv2sql parse -h 5 bla.csv -c fr_id -c TID=tenant_id -r tenant_id='s/S_0(.*)/\
 Note that regular expressions are applied in the order they are specified, on the
 optionally renamed columns.
 
-
-# Type Conversions
+### Type Conversions (Formats)
 
 If you want to convert a column to a different type, you can do it like this:
 
-$ csv2sql parse bla.csv -c fr_status -c creation_date -c posting_date -t fr_status=str -t 'posting_date=date(%Y-%m-%d)(%Y)'
+$ csv2sql parse bla.csv -c fr_status -c creation_date -c posting_date -f fr_status=str -f 'posting_date=date(%Y-%m-%d)(%Y)'
 
 Note that in the case of a date field, it is perhaps easier to see it as
 a string and apply a regular expression to it:
 
-$ csv2sql parse bla.csv -c fr_status -c creation_date -c posting_date -t fr_status=str -r posting_date='s/(\d\d\d\d)-.*/\1/'
+$ csv2sql parse bla.csv -c fr_status -c creation_date -c posting_date -f fr_status=str -r posting_date='s/(\d\d\d\d)-.*/\1/'
 
 Note that type conversions are applied on the original column names, not on the
 potentially renamed columns.
 
 Note also that if you give no type conversions, all columns are read as strings.
 
+### Queries
 
-# Generate a CSV File
+If you want to generate a query, you can do it like this:
+
+#### In Query
+
+$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -r product_name=s/abc/def/ -q 'product_name contains "def"' -a
+
+Note that replace statements are applied before the query is applied.
+
+#### Not Empty Query
+
+$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -a
+
+#### Boolean Query
+
+$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -c product_id -q 'contact!=""' -f product_id=int -q 'product_id>800300' -a
+
+Note how we needed to convert the product_id column to an integer.
+
+#### Here's a very complex query
+
+$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -f product_id=int -q 'product_id>8003000' -q 'product_id<8004000' -q 'product_name contains "Ariba"' -q 'not contact contains "Olaf"' -a
+
+#### Noteworthy
+
+Not you typically need to use the -a option to query all rows, because the query
+will only work on the rows that are actually shown.
+
+### Sort the output
+
+Here is an even more complex query showing how to sort the output:
+
+$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -f product_id=int -q 'product_id>8003000' -q 'product_id<8004000' -a -q 'product_name contains "Ariba"' -q 'not contact contains "Olaf"' -o -product_id -o product_name
+
+You can give any number of ordering options, and they will be applied in the order; 
+if you want to reverse the order, you can prefix the column with a minus sign.
+
+
+### Generate a CSV File
 
 To show the content of a CSV file in CSV format, you can do it like this:
 
-$ csv2sql.py parse --csv my_file.csv
+$ csv2sql.py parse --csv 
+
+You can also directly pipe the output to a file:
+
+$ csv2sql.py parse approvers.xlsx --csv > my_file.csv
+
+
+### Generate an Excel File
+
+To export the data to an Excel file, you can do it like this:
+
+$ csv2sql.py parse approvers.csv --excel=my_file.xlsx
+
+
+### Generate a JSON File
+
+To export the data to a JSON file, you can do it like this:
+
+$ csv2sql.py parse approvers.csv --json
+
+You can also pretty print the JSON file:
+
+$ csv2sql.py parse approvers.csv --pjson
+
+
+### Generate an HTML File
+
+To export the data to an HTML file, you can do it like this:
+
+$ csv2sql.py parse approvers.csv --html
+
+
+### Generate a Markdown File
+
+To export the data to a Markdown file, you can do it like this:
+
+$ csv2sql.py parse approvers.csv --markdown
+
+
+### Generate a SQL Schema
+
+To generate a SQL schema, you can do it like this:
+
+$ csv2sql.py parse approvers.csv --sql
+
+
+### Directly load the data into a Database
+
+#### Show the database schema to be used
+
+Before writing to the database, it may be a good idea to show the database schema
+that will be used:
+
+To directly load the data into a database, you can do it like this:
+
+$ csv2sql.py parse approvers.csv --db
+
+This will create a table called approvers in the database.
+
+#### Use a prefix for the table name
+
+If you want to use a prefix for the table name, you can do it like this:
+
+$ csv2sql.py parse approvers.csv --db --prefix=_tp_
+
+#### Use a different table name
+
+If you want to use a different table name, you can do it like this:
+
+$ csv2sql.py parse approvers.csv --db -t=approvers2
+
+#### Use a different database
+
+You can use a different database by specifying the database connection string and optionally the database type:
+
+$ csv2sql.py parse approvers.csv --db --dbtype=mysql+pymysql --dbconn=user:password@dbhost:3306/mydb
+$ csv2sql.py parse approvers.csv --db --dbtype=postgresql    --dbconn=user:password@dbhost:5432/mydb
+
+#### Use special database connection parameters
+
+You can use special database connection parameters by specifying the database connection string and optionally the database type:
+
+$ csv2sql.py parse approvers.csv --db --dbtype=mysql+pymysql --dbconn=user:password@dbhost:3306/mydb?charset=utf8mb4
+
+You can also use the dbargs option to specify the database connection parameters:
+
+$ csv2sql.py parse approvers.csv --db --dbargs='{"charset": "utf8mb4", "use_unicode": "True", "connect_timeout": 10}'
 
 """
 
@@ -135,8 +266,13 @@ import csv
 import hashlib
 import struct
 import pandas as pd
-
+import numpy as np
+from pandas.io import sql
+from sqlalchemy import create_engine
+import json
+import os
 from os import path
+from pathlib import Path
 
 #
 # More Beautiful Tracebacks and Pretty Printing
@@ -181,7 +317,7 @@ app = typer.Typer(
 @app.command()
 def table (
     ctx:        typer.Context,
-    sepr:       str  = typer.Option(",",    "--separator", "-s", "--sep",   help="The separator to use"),
+    sepr:       str  = typer.Option(None,   "--separator", "-s", "--sep",   help="The separator to use"),
     table:      bool = typer.Option(False,  "--table",     "-t",            help="Whether to create a table or not"),
     temporary:  bool = typer.Option(False,  "--temptable", "-tt",           help="Whether to create a temporary table or not"),  
     prefix:     str  = typer.Option("",     "--prefix",    "-p",            help="The prefix to use for the table name"),
@@ -214,10 +350,25 @@ def parse (
     all:        bool = typer.Option(False,     "--all",       "-a",          help="Whether to show all rows or not"),
     columns:    List[str] = typer.Option(None, "--columns",   "-c",          help="The columns to show and their alternate names"),
     names:      List[str] = typer.Option(None, "--names",     "-n",          help="If you just want to rename columns, but not select them"),
-    omit:       List[str] = typer.Option(None, "--omit",      "-o",          help="The columns to omit"),
+    omit:       List[str] = typer.Option(None, "--omit",                     help="The columns to omit"),
+    query:      List[str] = typer.Option(None, "--query",     "-q",          help="The query to apply to the specified columns"),
     replace:    List[str] = typer.Option(None, "--replace",   "-r",          help="The regular expressions to apply to the specified columns"),
-    types:      List[str] = typer.Option(None, "--types",     "-t",          help="The types to use for the specified columns"),
+    formats:    List[str] = typer.Option(None, "--formats",   "-f",          help="The formats to use for the specified columns"),
+    unique:     List[str] = typer.Option(None, "--unique",    "-u",          help="The columns to unique on"),
+    order:      List[str] = typer.Option(None, "--order",     "-o",          help="The sort order to use for the specified columns"),
     ascsv:      bool = typer.Option(False,     "--csv",                      help="Whether to output in CSV format or not"),
+    asexcel:    str  = typer.Option(None,      "--excel", "-xls", "-xlsx",   help="The excel (xlsx) file to write to"),
+    asjson:     bool = typer.Option(False,     "--json",                     help="Whether to output in JSON format or not"),
+    aspjson:    bool = typer.Option(False,     "--pjson",                    help="Whether to output in pretty JSON format or not"),
+    ashtml:     bool = typer.Option(False,     "--html",                     help="Whether to output in HTML format or not"),
+    asmd:       bool = typer.Option(False,     "--md",                       help="Whether to output in Markdown format or not"),
+    assql:      bool = typer.Option(False,     "--sql",                      help="Whether to output in SQL format or not"),
+    db:         bool = typer.Option(False,     "--db",        "-db",         help="Whether to write to the database or not"),
+    dbtable:    str  = typer.Option(None,      "--table",     "-t",          help="The database table to write to"),
+    prefix:     str  = typer.Option("",        "--prefix",    "-p",          help="The prefix to use for the table name"),
+    dbconn:     str  = typer.Option("tc:sap123@tc:3306/tc",    "--dbconn",   help="The database connection string"),
+    dbtype:     str  = typer.Option("mysql+pymysql",           "--dbtype",   help="The database type"),
+    dbargs:     str  = typer.Option('{"connect_timeout": 10}', "--dbargs",   help="The database connection arguments to use"),
     files:      Optional[List[str]] = typer.Argument(None,                   help="The files to process"),
 ) -> None:
     """
@@ -260,7 +411,7 @@ def parse (
             #
             # Read the file
             #            
-            if types:
+            if formats:
                 #
                 # If we have types, we need to apply them
                 #
@@ -270,7 +421,7 @@ def parse (
                     'float': lambda x: float(re.sub(r'[^0-9.]', '', x)) if x else None,
                     'str':   str,
                 }
-                for t in types:
+                for t in formats:
                     col, col_type = t.split("=")
                     #
                     # If the type is date, we need to parse the format
@@ -299,17 +450,20 @@ def parse (
                 # Read in the file
                 #
                 if head == -1 or all:
-                    df = pd.read_csv(file, sep=sepr, converters=converters)
+                    df = read_file(file, sepr, -1, converters)
                 else:
-                    df = pd.read_csv(file, sep=sepr, nrows=head, converters=converters)
+                    df = read_file(file, sepr, head, converters)
+
             #
             # If we don't have types, we can just read the file
             #
             else:
                 if head == -1 or all:
-                    df = pd.read_csv(file, sep=sepr, dtype=str)
+                    # df = pd.read_csv(file, sep=sepr, dtype=str)
+                    df = read_file(file, sepr, -1)
                 else:
-                    df = pd.read_csv(file, sep=sepr, nrows=head, dtype=str)
+                    # df = pd.read_csv(file, sep=sepr, nrows=head, dtype=str)
+                    df = read_file(file, sepr, head)
 
             #
             # Deal with missing values
@@ -363,10 +517,117 @@ def parse (
                                     print(f"Invalid replace string {rep}")
 
             #
+            # If we are asked to query, do it
+            #
+            if query:
+                for q in query:
+                    q = re.sub(r'(\w+) contains "(.*)"', r'\1.str.contains("\2")', q)
+                    df = df.query(f"{q}", engine='python') # This is safe, as we are using pandas
+
+            #
+            # If asked to drop duplicates, do it
+            #
+            if unique:
+                df = df.drop_duplicates(unique)
+
+
+            #
+            # If asked to sort, do it
+            #
+            if order:
+                sortvalues = []
+                sortorders = []
+                for o in order:
+                    if o.startswith("-"):
+                        sortvalues.append(o[1:])
+                        sortorders.append(False)
+                    else:
+                        sortvalues.append(o)
+                        sortorders.append(True)
+                df = df.sort_values(sortvalues, ascending=sortorders)
+
+
+            #
+            # If asked to output in HTML format, do it
+            #
+            if ashtml:
+                print(df.to_html(index=False))
+
+            #
+            # If asked to output in markdown format, do it
+            #
+            elif asmd:
+                print(df.to_markdown(index=False))
+
+
+            #
+            # If asked to output in SQL format, do it
+            #
+            elif assql:
+                if dbtable is None: # If no table name is given, we use the file name
+                    dbtable = Path(file).stem # We use the stem of the file name, without the extension
+                if prefix != "": # If we have a prefix, we add it to the table name
+                    dbtable = f"{prefix}{dbtable}"                
+                if dbargs is not None:
+                    connect_args = json.loads(dbargs)
+                else:
+                    connect_args = {}
+                engine=create_engine(f"{dbtype}://{dbconn}", echo=True, connect_args=connect_args)
+                sql_stmt = sql.get_schema(df, dbtable, con=engine)
+                print(f"{sql_stmt}")
+
+
+            #
+            # If asked to write to DB, do it
+            #
+            elif db:
+                if dbtable is None: # If no table name is given, we use the file name
+                    dbtable = Path(file).stem # We use the stem of the file name, without the extension
+                if prefix != "": # If we have a prefix, we add it to the table name
+                    dbtable = f"{prefix}{dbtable}"
+                if dbargs is not None: # If we have DB args, we use them
+                    connect_args = json.loads(dbargs)
+                else:
+                    connect_args = {}
+                engine=create_engine(f"{dbtype}://{dbconn}", echo=False, connect_args=connect_args) # We create the engine
+                total_rows = len(df)
+                chunk_size = total_rows//1000 # Calculate the chunk size
+                if chunk_size == 0:
+                    chunk_size = total_rows // 100
+                    if chunk_size == 0 or chunk_size < 100:
+                        chunk_size = 100
+                with Progress() as progress:
+                    task = progress.add_task(f"Writing {total_rows} in chunks of {chunk_size} to {dbtable}", total=total_rows)
+                    for i, chunk in enumerate(np.array_split(df, total_rows // chunk_size + 1)):
+                        chunk.to_sql(dbtable, engine, if_exists='replace', index=False)
+                        progress.update(task, advance=chunk_size)                
+                print(f"Done writing [magenta]{total_rows}[/magenta] rows to [green]{dbtable}[/green].")
+                
+
+
+            #
+            # If asked to output in JSON format, do it
+            #
+            elif asjson:
+                print(df.to_json(orient='records'))
+
+            #
+            # If asked to output in pretty JSON format, do it
+            #
+            elif aspjson:
+                print(df.to_json(orient='records', indent=4))
+
+            #
+            # If asked to output in Excel format, do it
+            #
+            elif asexcel is not None:
+                df.to_excel(asexcel, index=False)
+
+            #
             # If asked to output in CSV format, do it.
             # Otherwise, output in table format
             #
-            if ascsv:
+            elif ascsv:
                 df.to_csv(sys.stdout, sep=sepr, index=False, quoting=csv.QUOTE_NONNUMERIC, quotechar='"',escapechar='\\')
             else:
                 table = rich.table.Table(show_header=True, header_style="bold magenta")
@@ -395,6 +656,43 @@ def file_len(file_path):
         for i, l in enumerate(f):
             pass
     return i + 1
+
+
+#
+# Read a file and output it in a dataframe
+#
+def read_file(filename: str, separator: str = None, rows: int = -1, converters = None ) -> pd.DataFrame:
+    file_ext = os.path.splitext(filename)[1]
+    if file_ext == '.csv': # If it's a CSV file, use pandas
+        if separator: # If we have a separator, use it
+            if rows > -1: # If we have a number of rows, use it
+                if converters: # If we have converters, use them
+                    return pd.read_csv(filename, sep=separator, nrows=rows, converters=converters)
+                else: # If we don't have converters, don't use them
+                    return pd.read_csv(filename, sep=separator, nrows=rows, dtype=str)
+            else: # If we don't have a number of rows, read the whole file
+                if converters: # If we have converters, use them
+                    return pd.read_csv(filename, sep=separator, converters=converters)
+                else: # If we don't have converters, don't use them
+                    return pd.read_csv(filename, sep=separator, dtype=str)
+        else: # If we don't have a separator, try to auto-detect it
+            with open(filename, 'r') as f:
+                dialect = csv.Sniffer().sniff(f.readline()) # Try to auto-detect the separator
+                f.seek(0) # Go back to the beginning of the file
+                if rows > -1: # If we have a number of rows, use it
+                    if converters: # If we have converters, use them
+                        return pd.read_csv(filename, sep=dialect.delimiter, nrows=rows, converters=converters)
+                    else: # If we don't have converters, don't use them
+                        return pd.read_csv(filename, sep=dialect.delimiter, nrows=rows, dtype=str)
+                else: # If we don't have a number of rows, read the whole file
+                    if converters: # If we have converters, use them
+                        return pd.read_csv(filename, sep=dialect.delimiter, converters=converters)
+                    else: # If we don't have converters, don't use them
+                        return pd.read_csv(filename, sep=dialect.delimiter, dtype=str)
+    elif file_ext in ('.xls', '.xlsx'): # If we have an Excel file, use the Excel reader     
+        return pd.read_excel(filename)
+    else: # If we have an unsupported file type, raise an error
+        raise ValueError(f"Invalid file format: {file_ext}. Only CSV, XLS, and XLSX are supported.")
 
 
 #
