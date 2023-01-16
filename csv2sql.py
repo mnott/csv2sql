@@ -277,7 +277,7 @@ import struct
 import pandas as pd
 import numpy as np
 from pandas.io import sql
-from sqlalchemy import create_engine, MetaData, Table
+from sqlalchemy import create_engine, MetaData, Table, exc
 import json
 import os
 from os import path
@@ -648,8 +648,12 @@ def parse (
                 # First drop the table
                 #
                 meta = MetaData() # We create the metadata
-                table = Table(dbtable, meta, autoload_with=engine) # We load the table
-                table.drop(bind=engine, checkfirst=True) # We drop the table
+                try:
+                    table = Table(dbtable, meta, autoload_with=engine) # We load the table
+                    if table.exists():
+                        table.drop(bind=engine, checkfirst=True) # We drop the table
+                except exc.NoSuchTableError:
+                    pass #print(f"Table {dbtable} does not exist.")
 
                 #
                 # Insert the data
