@@ -126,6 +126,9 @@ If you want to use the COMPRESSED row format, you can do it like this:
 
 $ csv2sql.py table -t -c my_file.csv
 
+
+
+
 ## Parse a CSV (or Excel) file and optionally write it to a Database
 
 ### Show the Content of a CSV (or Excel) File
@@ -393,6 +396,13 @@ $ csv2sql.py parse approvers.csv --db --dbtype=mysql+pymysql --dbspecial=charset
 You can also use the dbargs option to specify the database connection parameters:
 
 $ csv2sql.py parse approvers.csv --db --dbargs='{"charset": "utf8mb4", "use_unicode": "True", "connect_timeout": 10}'
+
+
+### Drop the table from the database
+
+If you want to drop the table from the database, you can do it like this:
+
+$ csv2sql.py drop -p _tmp_ -t fpm
 
 """
 
@@ -1068,6 +1078,62 @@ def parse (
                     for row in df.iloc[headp:].itertuples(index=False):
                         table.add_row(*[str(i) for i in row])
                 print(table)
+
+
+#
+# Drop a table
+#
+#@app.callback(invoke_without_command=True)
+@app.command()
+def drop (
+    ctx:        typer.Context,
+    sepr:       str  = typer.Option(None,      "--separator", "-s", "--sep", help="The separator to use"),
+    dbtable:    str  = typer.Option(None,      "--table",     "-t",          help="The database table to write to"),
+    prefix:     str  = typer.Option("",        "--prefix",    "-p",          help="The prefix to use for the table name"),
+    dbhost:     str  = typer.Option("tc",      "--dbhost",    "-dh",         help="The database host to connect to"),
+    dbport:     int  = typer.Option(3306,      "--dbport",    "-dp",         help="The database port to connect to"),
+    dbuser:     str  = typer.Option("tc",      "--dbuser",    "-du",         help="The database user to connect as"),
+    dbpass:     str  = typer.Option("sap123",  "--dbpass",    "-dp",         help="The database password to connect with"),
+    dbschema:   str  = typer.Option("tc",      "--dbschema",  "-ds",         help="The database schema to connect to"),
+    dbspecial:  str  = typer.Option(None,      "--dbspecial", "-dss",        help="The database specials to use for the connection"),
+    dbtype:     str  = typer.Option("mysql+pymysql",           "--dbtype",   help="The database type"),
+    dbargs:     str  = typer.Option('{"connect_timeout": 10}', "--dbargs",   help="The database connection arguments to use"),
+) -> None:
+    """
+    Drop a table from the database.
+    """
+    if dbtable is None: 
+        print ("Please specify a table to drop.") # If no table name is given, we exit
+        sys.exit(1)
+    if prefix != "": # If we have a prefix, we add it to the table name
+        dbtable = f"{prefix}{dbtable}"
+    if dbargs is not None: # If we have DB args, we use them
+        connect_args = json.loads(dbargs)
+    else:
+        connect_args = {}
+    if dbspecial is not None:
+        dbspecial = f"?{dbspecial}"
+    else:
+        dbspecial = ""                            
+    engine=create_engine(f"{dbtype}://{dbuser}:{dbpass}@{dbhost}:{dbport}/{dbschema}{dbspecial}", echo=False, connect_args=connect_args) # We create the engine
+
+    #
+    # Drop the table
+    #
+    meta = MetaData() # We create the metadata
+    try:
+        meta = MetaData()
+        table = Table(dbtable, meta)
+        insp = inspect(engine)
+        if dbtable in insp.get_table_names():
+            table = Table(dbtable, meta, autoload_with=engine)
+            table.drop(bind=engine, checkfirst=True)
+            print(f"Table [green]{dbtable}[/green] dropped.")
+        else:
+            print(f"Table [green]{dbtable}[/green] does not exist.")
+    except exc.NoSuchTableError:
+        print(f"Table [green]{dbtable}[/green] does not exist.")
+
 
 
 #

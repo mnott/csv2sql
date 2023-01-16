@@ -155,6 +155,9 @@ If you want to use the COMPRESSED row format, you can do it like this:
 $ csv2sql.py table -t -c my_file.csv
 ```
 
+
+
+
 ## Parse a CSV (or Excel) file and optionally write it to a Database
 
 ### Show the Content of a CSV (or Excel) File
@@ -501,4 +504,13 @@ You can also use the dbargs option to specify the database connection parameters
 
 ```bash
 $ csv2sql.py parse approvers.csv --db --dbargs='{"charset": "utf8mb4", "use_unicode": "True", "connect_timeout": 10}'
+```
+
+
+### Drop the table from the database
+
+If you want to drop the table from the database, you can do it like this:
+
+```bash
+$ csv2sql.py drop -p _tmp_ -t fpm
 ```
