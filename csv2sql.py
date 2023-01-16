@@ -486,7 +486,7 @@ def table (
     files:      Optional[List[str]] = typer.Argument(None,                    help="The files to process; optionally use = to specify the table name"),
 ) -> None:
     """
-    Parse CSV files to generate MySQL tables
+    Parse CSV or XLSX files to analyze the data and optionally generate create table statements.
     """
 
     #
@@ -731,7 +731,7 @@ def parse (
     files:      Optional[List[str]] = typer.Argument(None,                   help="The files to process"),
 ) -> None:
     """
-    Parse CSV files to generate MySQL tables
+    Parse CSV or XLSX files to analyze, convert and optionally load the data into a database.
     """
 
     #
