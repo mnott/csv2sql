@@ -678,8 +678,8 @@ def table (
                 result += f"  fields terminated by '{sepr}'\n"
                 result += "  optionally enclosed by '\"'\n"
                 result += "  ignore "
-                if max is not None and max > 0:
-                    result += f"{max + 1}"
+                if maxr is not None and maxr > 0:
+                    result += f"{maxr + 1}"
                 else:
                     result += "1"
                 result += " rows;\n"
