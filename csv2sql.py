@@ -242,7 +242,7 @@ Note that proper quoting is required. For exmaple:
 
 #### Equals Query
 
-$ csv2sql parse tpt_assignments_input.xlsx  -f "#Tenants"=int -f "#Customers"=int -m 1 -n "Tenant Product Type"=tpt -q 'tpt=="A"'
+$ csv2sql parse tpt_assignments_input.xlsx  -f "#Tenants"=int -f "#Customers"=int -m 1 -n "Tenant Product Type"=tpt -q 'tpt="A"'
 
 #### Boolean Query
 
@@ -252,7 +252,7 @@ Note how we needed to convert the product_id column to an integer.
 
 #### Equals Query for numerical values
 
-$ csv2sql parse tpt_assignments_input.xlsx -n "#Tenants=n_tenants" -q "n_tenants==7243" -f "#Tenants"=int -a 
+$ csv2sql parse tpt_assignments_input.xlsx -n "#Tenants=n_tenants" -q "n_tenants=7243" -f "#Tenants"=int -a 
 
 #### In Query
 
@@ -887,12 +887,25 @@ def parse (
                                 else:
                                     print(f"Invalid replace string {rep}")
 
+
+            #
+            # Replace NaN with ""
+            #
+            df = df.fillna("")
+
+            #
+            # Replace \u00A0 (Non breaking space) with ""; these appear
+            # to sometimes come from Excel, and cause problems with
+            # queries using ==.
+            df = df.replace("\u00A0", "", regex=True)
+
             #
             # If we are asked to query, do it
             #
             if query:
                 for q in query:
-                    q = re.sub(r'(\w+) contains "(.*)"', r'\1.str.contains("\2")', q)
+                    q = re.sub(r'(\w+) contains "(.*)"', r'\1.str.contains("\2")', q) # form proper contains query
+                    q = q.replace("=", "==") # replace == with =, as == is hard to type
                     df = df.query(f"{q}", engine='python') # This is safe, as we are using pandas
 
             #
@@ -919,10 +932,6 @@ def parse (
                 else:
                     df = df.sort_values(sortvalues, ascending=sortorders, kind='quicksort', na_position='last', key=lambda x: x.str.lower() if isinstance(x, str) else x )
 
-            #
-            # Replace NaN with ""
-            #
-            df = df.fillna("")
 
             #
             # If asked to output in HTML format, do it

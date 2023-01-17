@@ -302,7 +302,7 @@ Note that proper quoting is required. For exmaple:
 #### Equals Query
 
 ```bash
-$ csv2sql parse tpt_assignments_input.xlsx  -f "#Tenants"=int -f "#Customers"=int -m 1 -n "Tenant Product Type"=tpt -q 'tpt=="A"'
+$ csv2sql parse tpt_assignments_input.xlsx  -f "#Tenants"=int -f "#Customers"=int -m 1 -n "Tenant Product Type"=tpt -q 'tpt="A"'
 ```
 
 #### Boolean Query
@@ -316,7 +316,7 @@ Note how we needed to convert the product_id column to an integer.
 #### Equals Query for numerical values
 
 ```bash
-$ csv2sql parse tpt_assignments_input.xlsx -n "#Tenants=n_tenants" -q "n_tenants==7243" -f "#Tenants"=int -a
+$ csv2sql parse tpt_assignments_input.xlsx -n "#Tenants=n_tenants" -q "n_tenants=7243" -f "#Tenants"=int -a
 ```
 
 #### In Query
