@@ -42,7 +42,7 @@ You can use the `-m` option to sample just a small part of the file:
 
 $ csv2sql.py table -m 100 my_file.csv
 
-Note that this will not give you the correct field lengths, but it will give you a 
+Note that this will not give you the correct field lengths, but it will give you a
 more or less good idea of the field lengths - depending on how big your sample is.
 For a guaranteed correct result, you should use the `-m -1` option or not use
 the `-m` option at all. The `-a` option is a shortcut for `-m -1`.
@@ -177,14 +177,14 @@ The above command shows 10 rows of the output, skipping the first 5 rows.
 
 If you want to just rename some columns, but output all columns, you can do it like this:
 
-$ csv2sql.py parse -n "Tenant Product Type"=tpt -n "Solution Area"=solution_area 
+$ csv2sql.py parse -n "Tenant Product Type"=tpt -n "Solution Area"=solution_area
 
 ### Show, Rename, and Rearrange a Subset of Columns
 
-If you want to rearrange, and rename columns, and also only show a subset of 
+If you want to rearrange, and rename columns, and also only show a subset of
 the columns, you can do it like this:
 
-$ csv2sql.py parse -c "Tenant Product Type"=tpt -c "Solution Area"=solution_area 
+$ csv2sql.py parse -c "Tenant Product Type"=tpt -c "Solution Area"=solution_area
 
 Note that if you did use the -n option, you can also use the -c option to
 then further rearrange the columns.
@@ -252,7 +252,7 @@ Note how we needed to convert the product_id column to an integer.
 
 #### Equals Query for numerical values
 
-$ csv2sql parse tpt_assignments_input.xlsx -n "#Tenants=n_tenants" -q "n_tenants=7243" -f "#Tenants"=int -a 
+$ csv2sql parse tpt_assignments_input.xlsx -n "#Tenants=n_tenants" -q "n_tenants=7243" -f "#Tenants"=int -a
 
 #### In Query
 
@@ -284,7 +284,7 @@ Here is an even more complex query showing how to sort the output:
 
 $ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -f product_id=int -q 'product_id>8003000' -q 'product_id<8004000' -a -q 'product_name contains "Ariba"' -q 'not contact contains "Olaf"' -o -product_id -o product_name
 
-You can give any number of ordering options, and they will be applied in the order; 
+You can give any number of ordering options, and they will be applied in the order;
 if you want to reverse the order, you can prefix the column with a minus sign.
 
 Note that if you have a numeric value, in order to sort it numerically, you need
@@ -300,7 +300,7 @@ csv2sql parse sold_to_party.csv -f customer_name=str -q 'customer_name contains 
 
 To show the content of a CSV file in CSV format, you can do it like this:
 
-$ csv2sql.py parse --csv 
+$ csv2sql.py parse --csv
 
 You can also directly pipe the output to a file:
 
@@ -410,6 +410,8 @@ $ csv2sql.py drop -p _tmp_ -t fpm
 # Imports
 #
 import warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='openpyxl')
+
 import sys
 import pprint
 import re
@@ -424,6 +426,22 @@ import json
 import os
 from os import path
 from pathlib import Path
+
+#
+# ML
+#
+import nltk
+from nltk.corpus import stopwords
+from nltk.probability import FreqDist
+from nltk.tokenize import RegexpTokenizer
+from nltk.stem import WordNetLemmatizer
+
+#
+# Word Cloud
+#
+import matplotlib.pyplot as plt
+from wordcloud import WordCloud
+
 
 #
 # More Beautiful Tracebacks and Pretty Printing
@@ -473,8 +491,137 @@ app = typer.Typer(
 )
 
 
+
 #
-# Main
+# Word Cloud
+#
+@app.command()
+def wordcloud (
+    ctx:        typer.Context,
+    sepr:       str  = typer.Option(None,      "--separator",  "-s", "--sep", help="The separator to use"),
+    feature:    str  = typer.Option(None,      "--feature",    "-f",          help="The name of the features column to use"),
+    stop:       str  = typer.Option(None,      "--stop",       "-S",          help="The name of the stop words file to use"),
+    output:     str  = typer.Option("wordcloud.png", "--output", "-o",        help="The name of the output file"),
+    width:      int  = typer.Option(800,       "--width",      "-w",          help="The width of the output image"),
+    height:     int  = typer.Option(600,       "--height",     "-H",          help="The height of the output image"),
+    head:       int  = typer.Option(0,         "--head",       "-h",          help="The number of header lines to skip"),
+    all:        bool = typer.Option(False,     "--all",        "-a",          help="Whether to read all rows or not"),
+    maxr:       int  = typer.Option(-1,        "--max",        "-m",          help="The number of rows to read. -1 for all rows"),
+    files:      Optional[List[str]] = typer.Argument(None,                    help="The files to process"),
+) -> None:
+    """
+    Parse CSV or XLSX files and get a word cloud out of a given column
+    """
+    #
+    # Set the global separator
+    #
+    global _separator
+    if sepr is not None:
+        _separator = sepr
+
+    if len(files) == 0: # len(ctx.args) == 0:
+        print("Please specify a file name.")
+        sys.exit(1)
+    else:
+        for file in files: #ctx.args:
+            abs_path = path.abspath(file)
+
+            nrows = file_len(file)
+
+            if all:
+                df = read_file(file, sepr, -1, head)
+            else:
+                df = read_file(file, sepr, maxr, head)
+
+            #
+            # Replace NaN with ""
+            #
+            df = df.fillna("")
+
+            #
+            # Lowercase
+            #
+            df[feature] = df[feature].astype(str).str.lower()
+
+            #
+            # Remove punctuation
+            #
+            regexp = RegexpTokenizer('\w+')
+            df['text_token']=df[feature].apply(regexp.tokenize)
+
+            #
+            # Remove stopwords
+            #
+            # import nltk
+            # nltk.download('stopwords')
+
+            # Make a list of english stopwords
+            stopwords = nltk.corpus.stopwords.words("english")
+
+            # Extend the list with your own custom stopwords
+            my_stopwords = []
+            if stop is not None:
+                with open(stop, "r") as f:
+                    for line in f:
+                        line = line.rstrip()
+                        if (line.startswith("#")):
+                            continue
+                        my_stopwords.append(line)
+
+            stopwords.extend(my_stopwords)
+
+            df['text_token'] = df['text_token'].apply(lambda x: [item for item in x if item not in stopwords])
+
+            #
+            # Remove infrequent words
+            #
+            df['text_string'] = df['text_token'].apply(lambda x: ' '.join([item for item in x if len(item)>2]))
+            df[[feature, 'text_token', 'text_string']].head()
+
+            #
+            # Create a list of all words
+            #
+            all_words = ' '.join([word for word in df['text_string']])
+
+            # Tokenize the words
+            tokenized_words = nltk.tokenize.word_tokenize(all_words)
+
+            # Create a frequency distribution of the words
+            fdist = FreqDist(tokenized_words)
+
+            # Create a dataframe of the most common words
+            df['text_string_fdist'] = df['text_token'].apply(lambda x: ' '.join([item for item in x if fdist[item] >= 1 ]))
+            # print(df[[feature, 'text_token', 'text_string', 'text_string_fdist']].head())
+
+            # Lemmatize the words
+            # import nltk
+            # nltk.download('wordnet')
+            # nltk.download('omw-1.4')
+            wordnet_lem = WordNetLemmatizer()
+
+            df['text_string_lem'] = df['text_string_fdist'].apply(wordnet_lem.lemmatize)
+
+            # check if the columns are equal
+            df['is_equal'] = (df['text_string_fdist']==df['text_string_lem'])
+            # print(df.head(100))
+
+            # Word Cloud
+            all_words_lem = ' '.join([word for word in df['text_string_lem']])
+
+            wordcloud = WordCloud(width=width,
+                                 height=height,
+                                 random_state=2,
+                                 max_font_size=100).generate(all_words_lem)
+
+            plt.figure(figsize=(10, 7))
+            plt.imshow(wordcloud, interpolation='bilinear')
+            plt.axis('off')
+            plt.savefig(output)
+
+
+
+#
+# Table
 #
 #@app.callback(invoke_without_command=True)
 @app.command()
@@ -482,7 +629,7 @@ def table (
     ctx:        typer.Context,
     sepr:       str  = typer.Option(None,      "--separator",  "-s", "--sep", help="The separator to use"),
     table:      bool = typer.Option(False,     "--table",      "-t",          help="Whether to create a table or not"),
-    temporary:  bool = typer.Option(False,     "--temptable",  "-tt",         help="Whether to create a temporary table or not"),  
+    temporary:  bool = typer.Option(False,     "--temptable",  "-tt",         help="Whether to create a temporary table or not"),
     prefix:     str  = typer.Option("",        "--prefix",     "-p",          help="The prefix to use for the table name"),
     dir:        str  = typer.Option(None,      "--dir",        "-d",          help="The load directory on the Server"),
     head:       int  = typer.Option(0,         "--head",       "-h",          help="The number of header lines to skip"),
@@ -526,7 +673,7 @@ def table (
             else:
                 tablename = Path(file).stem
                 if prefix != "": # If we have a prefix, we add it to the table name
-                    dbtable = f"{prefix}{tablename}"      
+                    dbtable = f"{prefix}{tablename}"
 
 
             abs_path = path.abspath(file)
@@ -678,8 +825,8 @@ def table (
                 result += f"  fields terminated by '{sepr}'\n"
                 result += "  optionally enclosed by '\"'\n"
                 result += "  ignore "
-                if maxr is not None and maxr > 0:
-                    result += f"{maxr + 1}"
+                if head is not None and head > 0:
+                    result += f"{head + 1}"
                 else:
                     result += "1"
                 result += " rows;\n"
@@ -694,8 +841,8 @@ def table (
             #
             # Return the result
             #
-            print(result)            
-    
+            print(result)
+
 
 #
 # Parse the Content of a CSV File and optionally convert it to a csv file
@@ -787,7 +934,7 @@ def parse (
         for file in files: #ctx.args:
             #
             # Read the file
-            #            
+            #
             if formats:
                 #
                 # If we have types, we need to apply them
@@ -958,7 +1105,7 @@ def parse (
                 if dbtable is None: # If no table name is given, we use the file name
                     dbtable = Path(file).stem # We use the stem of the file name, without the extension
                 if prefix != "": # If we have a prefix, we add it to the table name
-                    dbtable = f"{prefix}{dbtable}"                
+                    dbtable = f"{prefix}{dbtable}"
                 if dbargs is not None:
                     connect_args = json.loads(dbargs)
                 else:
@@ -988,7 +1135,7 @@ def parse (
                     df = df.iloc[headp:].head(maxp)
                 else:
                     df = df.iloc[headp:]
-                    
+
                 total_rows = len(df)
                 if chunk_size > total_rows:
                     chunk_size = total_rows//1000 # Calculate the chunk size
@@ -999,15 +1146,14 @@ def parse (
                 if dbspecial is not None:
                     dbspecial = f"?{dbspecial}"
                 else:
-                    dbspecial = ""                            
+                    dbspecial = ""
                 engine=create_engine(f"{dbtype}://{dbuser}:{dbpass}@{dbhost}:{dbport}/{dbschema}{dbspecial}", echo=False, connect_args=connect_args) # We create the engine
 
                 #
                 # First drop the table
                 #
-                meta = MetaData() # We create the metadata
                 try:
-                    meta = MetaData()
+                    meta = MetaData() # We create the metadata
                     table = Table(dbtable, meta)
                     insp = inspect(engine)
                     if dbtable in insp.get_table_names():
@@ -1023,11 +1169,11 @@ def parse (
                     task = progress.add_task(f"Writing {total_rows} in chunks of {chunk_size} to {dbtable}", total=total_rows)
                     for i, chunk in enumerate(np.array_split(df, total_rows // chunk_size + 1)):
                         chunk.to_sql(dbtable, engine, if_exists='append', index=False)
-                        progress.update(task, advance=chunk_size)           
+                        progress.update(task, advance=chunk_size)
                         connection = engine.raw_connection()
-                        connection.commit()     
+                        connection.commit()
                 print(f"Done writing [magenta]{total_rows}[/magenta] rows to [green]{dbtable}[/green].")
-               
+
             #
             # If asked to output in JSON format, do it
             #
@@ -1066,7 +1212,7 @@ def parse (
                     df.iloc[headp:].head(maxp).to_csv(sys.stdout, sep=sepr, index=False, quoting=csv.QUOTE_NONNUMERIC, quotechar='"',escapechar='\\')
                 else:
                     df.iloc[headp:].to_csv(sys.stdout, sep=sepr, index=False, quoting=csv.QUOTE_NONNUMERIC, quotechar='"',escapechar='\\')
-            
+
             #
             # If all else fails, output table
             #
@@ -1110,7 +1256,7 @@ def drop (
     """
     Drop a table from the database.
     """
-    if dbtable is None: 
+    if dbtable is None:
         print ("Please specify a table to drop.") # If no table name is given, we exit
         sys.exit(1)
     if prefix != "": # If we have a prefix, we add it to the table name
@@ -1122,7 +1268,7 @@ def drop (
     if dbspecial is not None:
         dbspecial = f"?{dbspecial}"
     else:
-        dbspecial = ""                            
+        dbspecial = ""
     engine=create_engine(f"{dbtype}://{dbuser}:{dbpass}@{dbhost}:{dbport}/{dbschema}{dbspecial}", echo=False, connect_args=connect_args) # We create the engine
 
     #
@@ -1154,9 +1300,9 @@ def file_len(file_path):
             for i, l in enumerate(f):
                 pass
         return i + 1
-    elif file_ext in ('.xls', '.xlsx'): # If we have an Excel file, use the Excel reader 
+    elif file_ext in ('.xls', '.xlsx'): # If we have an Excel file, use the Excel reader
         with pd.ExcelFile(file_path) as xlsx:
-            nrows = pd.read_excel(xlsx, usecols=None, nrows=1, dtype=str).shape[0]    
+            nrows = pd.read_excel(xlsx, usecols=None, nrows=1, dtype=str).shape[0]
             return nrows
     else: # If we have an unsupported file type, raise an error
         raise ValueError(f"Invalid file format: {file_ext}. Only CSV, XLS, and XLSX are supported.")
@@ -1172,15 +1318,15 @@ def read_file(filename: str, separator: str = None, rows: int = -1, head: int = 
         if separator: # If we have a separator, use it
             if rows > -1: # If we have a number of rows, use it
                 if converters: # If we have converters, use them
-                    df = pd.read_csv(filename, sep=separator, nrows=rows, skiprows=range(1, head), converters=converters)
+                    df = pd.read_csv(filename, sep=separator, escapechar='\\', nrows=rows, skiprows=range(0, head), converters=converters)
                     return df
                 else: # If we don't have converters, don't use them
-                    return pd.read_csv(filename, sep=separator, nrows=rows, skiprows=range(1, head), dtype=str)
+                    return pd.read_csv(filename, sep=separator, escapechar='\\', nrows=rows, skiprows=range(0, head), dtype=str)
             else: # If we don't have a number of rows, read the whole file
                 if converters: # If we have converters, use them
-                    return pd.read_csv(filename, sep=separator, skiprows=range(1, head), converters=converters)
+                    return pd.read_csv(filename, sep=separator, escapechar='\\', skiprows=range(0, head), converters=converters)
                 else: # If we don't have converters, don't use them
-                    return pd.read_csv(filename, sep=separator, skiprows=range(1, head), dtype=str)
+                    return pd.read_csv(filename, sep=separator, escapechar='\\', skiprows=range(0, head), dtype=str)
         else: # If we don't have a separator, try to auto-detect it
             with open(filename, 'r') as f:
                 dialect = csv.Sniffer().sniff(f.readline()) # Try to auto-detect the separator
@@ -1190,29 +1336,29 @@ def read_file(filename: str, separator: str = None, rows: int = -1, head: int = 
                 if rows > -1: # If we have a number of rows, use it
                     if converters: # If we have converters, use them
                         #pretty_print_converters (converters)
-                        df = pd.read_csv(filename, sep=dialect.delimiter, nrows=rows, skiprows=range(1, head), header=0, converters=converters)
+                        df = pd.read_csv(filename, sep=dialect.delimiter, escapechar='\\', nrows=rows, skiprows=range(0, head), header=0, converters=converters)
                         return df
                     else: # If we don't have converters, don't use them
-                        return pd.read_csv(filename, sep=dialect.delimiter, nrows=rows, skiprows=range(1, head), dtype=str)
+                        return pd.read_csv(filename, sep=dialect.delimiter, escapechar='\\', nrows=rows, skiprows=range(0, head), dtype=str)
                 else: # If we don't have a number of rows, read the whole file
                     if converters: # If we have converters, use them
-                        return pd.read_csv(filename, sep=dialect.delimiter, skiprows=range(1, head), converters=converters)
+                        return pd.read_csv(filename, sep=dialect.delimiter, escapechar='\\', skiprows=range(0, head), converters=converters)
                     else: # If we don't have converters, don't use them
-                        return pd.read_csv(filename, sep=dialect.delimiter, skiprows=range(1, head), dtype=str)
-    elif file_ext in ('.xls', '.xlsx'): # If we have an Excel file, use the Excel reader     
+                        return pd.read_csv(filename, sep=dialect.delimiter, escapechar='\\', skiprows=range(0, head), dtype=str)
+    elif file_ext in ('.xls', '.xlsx'): # If we have an Excel file, use the Excel reader
         if _separator is None:
             _separator = "," # Set the global separator
         if rows > -1: # If we have a number of rows, use it
             if converters:
                 #pretty_print_converters (converters)
-                return pd.read_excel(filename, nrows=rows, skiprows=range(1, head), converters=converters)
+                return pd.read_excel(filename, nrows=rows, skiprows=range(0, head), converters=converters)
             else:
-                return pd.read_excel(filename, nrows=rows, skiprows=range(1, head), dtype=str)
+                return pd.read_excel(filename, nrows=rows, skiprows=range(0, head), dtype=str)
         else: # If we don't have a number of rows, read the whole file
             if converters:
-                return pd.read_excel(filename, skiprows=range(1, head), converters=converters)
+                return pd.read_excel(filename, skiprows=range(0, head), converters=converters)
             else:
-                return pd.read_excel(filename, skiprows=range(1, head), dtype=str)
+                return pd.read_excel(filename, skiprows=range(0, head), dtype=str)
     else: # If we have an unsupported file type, raise an error
         raise ValueError(f"Invalid file format: {file_ext}. Only CSV, XLS, and XLSX are supported.")
 

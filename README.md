@@ -328,8 +328,7 @@ $ csv2sql parse tpt_assignments_input.xlsx -n "Tenant Product Type"=tpt -q 'tpt.
 #### Here's a very complex query
 
 ```bash
-$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -f product_id=int -q 'product_id>8003000' -q 'product_id<8004000' -q 'product_name contains "Ariba"' -q 'not contact 
-contains "Olaf"' -a
+$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -f product_id=int -q 'product_id>8003000' -q 'product_id<8004000' -q 'product_name contains "Ariba"' -q 'not contact contains "Olaf"' -a
 ```
 
 #### Starts With Query
@@ -357,8 +356,8 @@ $ csv2sql parse sold_to_party.csv -q 'customer_name.str.startswith("Kennametal")
 Here is an even more complex query showing how to sort the output:
 
 ```bash
-$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -f product_id=int -q 'product_id>8003000' -q 'product_id<8004000' -a -q 'product_name contains "Ariba"' -q 'not contact 
-contains "Olaf"' -o -product_id -o product_name
+$ csv2sql parse approvers.csv -c contact -c product_id -c product_name -q 'contact!=""' -f product_id=int -q 'product_id>8003000' -q 'product_id<8004000' -a -q 'product_name contains "Ariba"' -q 'not contact contains "Olaf"' -o 
+-product_id -o product_name
 ```
 
 You can give any number of ordering options, and they will be applied in the order;
