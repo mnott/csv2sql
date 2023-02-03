@@ -960,7 +960,7 @@ def parse (
                         if m:
                             date_type = m.group(1)
                             output_format = m.group(2)
-                            converter_dict[col] = eval(f"lambda x: pd.to_datetime(x, format=\"{date_type}\").strftime(\"{output_format}\") if x else None")
+                            converter_dict[col] = eval(f"lambda x: pd.to_datetime(x, format=\"{date_type}\").strftime(\"{output_format}\") if x and pd.to_datetime(x, format=\"{date_type}\") is not pd.NaT else None")
                             col_type="date"
                         else:
                             print(f"Missing date format for column {col}. Skipping.")
@@ -1010,6 +1010,11 @@ def parse (
                         df = df.drop(col, axis=1)
 
             #
+            # Replace NaN with ""
+            #
+            df = df.fillna("")
+
+            #
             # If asked to do regexes, do them
             #
             if replace:
@@ -1034,12 +1039,6 @@ def parse (
                                 else:
                                     print(f"Invalid replace string {rep}")
 
-
-            #
-            # Replace NaN with ""
-            #
-            df = df.fillna("")
-
             #
             # Replace \u00A0 (Non breaking space) with ""; these appear
             # to sometimes come from Excel, and cause problems with
@@ -1053,6 +1052,7 @@ def parse (
                 for q in query:
                     q = re.sub(r'(\w+) contains "(.*)"', r'\1.str.contains("\2")', q) # form proper contains query
                     q = q.replace("=", "==") # replace == with =, as == is hard to type
+                    q = q.replace("!==", "!=") # replace !== with !=, as !== is wrong
                     df = df.query(f"{q}", engine='python') # This is safe, as we are using pandas
 
             #
