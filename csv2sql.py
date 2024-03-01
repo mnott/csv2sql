@@ -94,7 +94,9 @@ $ csv2sql.py table -t my_file.csv -h 2
 
 If you want to just rename some columns, you can do it like this:
 
-$ csv2sql.py table -n "Tenant Product Type"=tpt -n "Solution Area"=solution_area
+$ csv2sql.py table -n "Tenant Product Type"=tpt -n "Solution Area"=solution_area -n 12=product_id
+
+Note that you can rename by name or by column index (1-based).
 
 ### Format Columns
 
@@ -177,7 +179,9 @@ The above command shows 10 rows of the output, skipping the first 5 rows.
 
 If you want to just rename some columns, but output all columns, you can do it like this:
 
-$ csv2sql.py parse -n "Tenant Product Type"=tpt -n "Solution Area"=solution_area
+$ csv2sql.py parse -n "Tenant Product Type"=tpt -n "Solution Area"=solution_area -n 12=product_id
+
+Note that you can rename by name or by column index (1-based).
 
 ### Show, Rename, and Rearrange a Subset of Columns
 
@@ -546,7 +550,7 @@ def wordcloud (
             #
             # Remove punctuation
             #
-            regexp = RegexpTokenizer('\w+')
+            regexp = RegexpTokenizer('\\w+')
             df['text_token']=df[feature].apply(regexp.tokenize)
 
             #
@@ -693,11 +697,22 @@ def table (
                 if names:
                     for col in names:
                         if col.find("=") == -1:
-                            print("Please specify a column name and its alternate name using =")
+                            print("Please specify a column name or its index and its alternate name using =")
                             sys.exit(1)
                         else:
                             temp = col.split("=")
-                            rename[temp[0]] = temp[1]
+                            key, new_name = temp[0], temp[1]
+                            # if key is digit, we assume it to be index
+                            if key.isdigit():
+                                key = int(key) - 1 # convert 1-based index to 0-based index
+                                if key >= len(df.columns) or key < 0:
+                                    print("Index is out of range.")
+                                    sys.exit(1)
+                                else:
+                                    df.columns.values[key] = new_name
+                            else: # key is column name
+                                rename[key] = new_name
+
                 if rename:
                     df = df.rename(columns=rename)
 
@@ -810,10 +825,12 @@ def table (
                         result += f"  index({idx_col})"
                         result += "," if i < len(idx)-1 else ""
                         result += "\n"
-                result += ") ENGINE=InnoDB DEFAULT CHARSET=utf8"
+                result += ") ENGINE=InnoDB"
 
                 if compressed and temporary == "":
                     result += f" ROW_FORMAT=COMPRESSED"
+
+                result += " DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;"
 
                 result += ";\n\n"
 
@@ -919,14 +936,27 @@ def parse (
         #
         # If asked to rename columns, do it
         #
+        rename_by_index = {}
+        rename_by_name = {}
+
         if names:
             for col in names:
                 if col.find("=") == -1:
-                    print("Please specify a column name and its alternate name using =")
+                    print("Please specify a column name or its index and its alternate name using =")
                     sys.exit(1)
                 else:
                     temp = col.split("=")
-                    rename[temp[0]] = temp[1]
+                    key, new_name = temp[0], temp[1]
+                    if key.isdigit():
+                        key = int(key) - 1
+                        if key < 0:
+                            print("Index should be 1 or higher.")
+                            sys.exit(1)
+                        else:
+                            rename_by_index[key] = new_name
+                    else:
+                        rename_by_name[key] = new_name
+
 
         #
         # Read the files
@@ -956,7 +986,7 @@ def parse (
                     # This is not safe, but as a simple command line tool, not too much of a problem.
                     #
                     if col_type.startswith("date"):
-                        m = re.search('date\((.*?)\)\((.*?)\)', col_type)
+                        m = re.search('date\\((.*?)\\)\\((.*?)\\)', col_type)
                         if m:
                             date_type = m.group(1)
                             output_format = m.group(2)
@@ -992,8 +1022,17 @@ def parse (
             #
             # If asked to rename columns, do it
             #
-            if rename:
-                df = df.rename(columns=rename)
+            if rename_by_index:
+                for key in rename_by_index.keys():
+                    if key >= len(df.columns):
+                        print(f"Column index {key+1} is out of range.")
+                        sys.exit(1)
+                    else:
+                        df.columns.values[key] = rename_by_index[key]
+            if rename_by_name:
+                df = df.rename(columns=rename_by_name)
+
+
 
             #
             # If asked to select, and reorder columns, do it

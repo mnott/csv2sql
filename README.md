@@ -114,8 +114,10 @@ $ csv2sql.py table -t my_file.csv -h 2
 If you want to just rename some columns, you can do it like this:
 
 ```bash
-$ csv2sql.py table -n "Tenant Product Type"=tpt -n "Solution Area"=solution_area
+$ csv2sql.py table -n "Tenant Product Type"=tpt -n "Solution Area"=solution_area -n 12=product_id
 ```
+
+Note that you can rename by name or by column index (1-based).
 
 ### Format Columns
 
@@ -219,8 +221,10 @@ The above command shows 10 rows of the output, skipping the first 5 rows.
 If you want to just rename some columns, but output all columns, you can do it like this:
 
 ```bash
-$ csv2sql.py parse -n "Tenant Product Type"=tpt -n "Solution Area"=solution_area
+$ csv2sql.py parse -n "Tenant Product Type"=tpt -n "Solution Area"=solution_area -n 12=product_id
 ```
+
+Note that you can rename by name or by column index (1-based).
 
 ### Show, Rename, and Rearrange a Subset of Columns
 
