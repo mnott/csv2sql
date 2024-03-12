@@ -872,6 +872,7 @@ def parse (
     head:       int  = typer.Option(0,         "--head",      "-h",          help="The number of header lines to skip when reading"),
     headp:      int  = typer.Option(0,         "--headp",     "-H",          help="The number of header lines to skip when showing"),
     all:        bool = typer.Option(False,     "--all",       "-a",          help="Whether to read all rows or not"),
+    longest:    bool = typer.Option(False,     "--longest",   "-l",          help="Show the row with the longest value for each column"),
     maxr:       int  = typer.Option(10,        "--max",       "-m",          help="The number of rows to read. -1 for all rows"),
     maxp:       int  = typer.Option(-1,        "--maxp",      "-M",          help="The number of rows to show. -1 for all rows"),
     columns:    List[str] = typer.Option(None, "--columns",   "-c",          help="The columns to show and their alternate names"),
@@ -1017,6 +1018,40 @@ def parse (
                     df = read_file(file, sepr, -1, head)
                 else:
                     df = read_file(file, sepr, maxr, head)
+
+
+            if longest:
+                df['Line Number'] = df.index + 1 + head  # +1 because index starts from 0, and adjust for header lines skipped
+
+                # Initialize lists to store the maximum length and corresponding row index for each column
+                max_lengths = []
+                max_row_indices = []
+
+                for index, row in df.iterrows():
+                    #progress.update(task, advance=1)
+                    #rows += 1
+                    #if rows_skipped > 0:
+                    #    rows_skipped -= 1
+                    #    continue
+
+                    for col, item in enumerate(row):
+                        item_length = len(str(item))
+                        if col >= len(max_lengths):
+                            max_lengths.append(item_length)
+                            max_row_indices.append(index)
+                        else:
+                            if item_length > max_lengths[col]:
+                                max_lengths[col] = item_length
+                                max_row_indices[col] = index
+
+                # Filter the dataframe to get rows with the longest values
+                longest_rows_df = df.loc[max_row_indices].drop_duplicates()
+
+                # Replace the original dataframe with the new one
+                df = longest_rows_df
+
+
+
 
 
             #
